@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awav
+package pt.ua.deti.icm.awave
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("pt.ua.deti.icm.awav", appContext.packageName)
+        assertEquals("pt.ua.deti.icm.awave", appContext.packageName)
     }
 }
