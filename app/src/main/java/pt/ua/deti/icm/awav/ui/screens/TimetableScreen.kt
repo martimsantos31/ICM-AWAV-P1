@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import pt.ua.deti.icm.awav.ui.components.EventCard
 
 @Composable
 fun TimetableScreen() {
@@ -28,7 +29,8 @@ fun TimetableScreen() {
         EventCard(
             title = "Gate Openings",
             time = "14:00",
-            location = "All Gates"
+            location = "All Gates",
+            isPurple = false
         )
         
         EventCard(
@@ -39,33 +41,3 @@ fun TimetableScreen() {
         
     }
 }
-
-@Composable
-private fun EventCard(
-    title: String,
-    time: String,
-    location: String
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium
-            )
-            Text(
-                text = time,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = location,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-} 

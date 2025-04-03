@@ -11,42 +11,45 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import pt.ua.deti.icm.e.ui.theme.AWAVTypography
 
-// Light Theme
+// Light Theme - Updated to match mockups
 private val LightColorScheme = lightColorScheme(
-    primary = Purple,
+    primary = DarkPurple,
     primaryContainer = LightPurple,
     onPrimary = White,
     secondary = Orange,
     onSecondary = White,
+    tertiary = BrightPurple,
     background = White,
     surface = White,
     onBackground = Black,
     onSurface = Black,
     surfaceVariant = LightGray,
-    onSurfaceVariant = DarkGray
+    onSurfaceVariant = DarkGray,
+    outline = SearchBarGray
 )
 
-// Dark Theme
+// Dark Theme - Updated to match mockups
 private val DarkColorScheme = darkColorScheme(
     primary = Purple,
     primaryContainer = DarkPurple,
     onPrimary = White,
     secondary = Orange,
     onSecondary = White,
+    tertiary = BrightPurple,
     background = Color(0xFF121212),
     surface = Color(0xFF1E1E1E),
     onBackground = White,
     onSurface = White,
     surfaceVariant = DarkGray,
-    onSurfaceVariant = LightGray
+    onSurfaceVariant = LightGray,
+    outline = Color(0xFF444444)
 )
 
 @Composable
 fun awavTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -61,7 +64,7 @@ fun awavTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
+            window.statusBarColor = colorScheme.background.toArgb() // Make status bar match background
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
