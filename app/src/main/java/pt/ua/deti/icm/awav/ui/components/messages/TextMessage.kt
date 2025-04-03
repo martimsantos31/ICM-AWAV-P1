@@ -1,13 +1,8 @@
-package pt.ua.deti.icm.awav.ui.components
+package pt.ua.deti.icm.awav.ui.components.messages
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -24,14 +19,15 @@ import pt.ua.deti.icm.awav.ui.theme.LightPurple
 import pt.ua.deti.icm.awav.ui.theme.Purple
 
 @Composable
-fun Modifier.ChatMessage(
+fun TextMessage(
     message: String,
     isFromCurrentUser: Boolean,
-    avatarResId: Int? = null
+    avatarResId: Int? = null,
+    modifier: Modifier = Modifier
 ) {
     if (isFromCurrentUser) {
         Row(
-            modifier = this,
+            modifier = modifier,
             verticalAlignment = Alignment.Bottom
         ) {
             Spacer(modifier = Modifier.weight(1f))
@@ -43,7 +39,7 @@ fun Modifier.ChatMessage(
             ) {
                 Text(
                     text = message,
-                    color = MaterialTheme.colorScheme.onSecondary,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -61,7 +57,7 @@ fun Modifier.ChatMessage(
         }
     } else {
         Row(
-            modifier = this,
+            modifier = modifier,
             verticalAlignment = Alignment.Bottom
         ) {
             avatarResId?.let {
@@ -83,7 +79,7 @@ fun Modifier.ChatMessage(
             ) {
                 Text(
                     text = message,
-                    color = MaterialTheme.colorScheme.onSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

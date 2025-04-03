@@ -1,5 +1,7 @@
 package pt.ua.deti.icm.awav.ui.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +33,7 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
     data object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
 
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @Composable
 fun AwavNavigation(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
@@ -100,10 +103,12 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Chat.route) { ChatScreen() }
+            composable(Screen.Chat.route) { ChatScreen(navController) }
             composable(Screen.Timetable.route) { TimetableScreen() }
             composable(Screen.Stands.route) { StandsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
+
+            composable("live_chat") { LiveChatScreen(navController) }
         }
     }
 }

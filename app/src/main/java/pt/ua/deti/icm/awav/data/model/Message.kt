@@ -8,7 +8,7 @@ data class Message(
     val timestamp: Long = System.currentTimeMillis(),
     val type: MessageType = MessageType.TEXT,
     val mediaUrl: String? = null,
-    val location: Location? = null
+    val location: SimpleLocation? = null
 )
 
 enum class MessageType {
@@ -17,7 +17,7 @@ enum class MessageType {
     LOCATION
 }
 
-data class Location(
-    val latitude: Double,
-    val longitude: Double
-) 
+data class SimpleLocation(
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0
+)
