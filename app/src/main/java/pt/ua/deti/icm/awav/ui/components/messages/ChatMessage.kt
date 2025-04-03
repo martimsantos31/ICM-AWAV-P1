@@ -1,13 +1,10 @@
 package pt.ua.deti.icm.awav.ui.components.messages
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import pt.ua.deti.icm.awav.data.model.Message
 import pt.ua.deti.icm.awav.data.model.MessageType
 
-@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 @Composable
 fun ChatMessage(
     message: Message,

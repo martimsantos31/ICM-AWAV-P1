@@ -28,6 +28,7 @@ import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Filled.Home, Icons.Outlined.Home)
     data object Chat : Screen("chat", "Chat", Icons.Filled.Chat, Icons.Outlined.Chat)
+    data object LiveChat : Screen("live_chat", "Live Chat", Icons.Filled.Chat, Icons.Outlined.Chat)
     data object Timetable : Screen("timetable", "Timetable", Icons.Filled.Schedule, Icons.Outlined.Schedule)
     data object Stands : Screen("stands", "Stands", Icons.Filled.Store, Icons.Outlined.Store)
     data object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
@@ -55,7 +56,6 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     contentAlignment = Alignment.Center,
                 ) {
                     NavigationBar(
-                        containerColor = Color.Transparent,
                         contentColor = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -63,7 +63,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                             NavigationBarItem(
                                 icon = {
                                     Icon(
-                                        imageVector = if (currentRoute == screen.route) screen.selectedIcon else screen.unselectedIcon,
+                                        imageVector = if (currentRoute == screen.route || (screen == Screen.Chat && currentRoute == Screen.LiveChat.route)) screen.selectedIcon else screen.unselectedIcon,
                                         contentDescription = screen.label
                                     )
                                 },
@@ -73,7 +73,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                                         style = MaterialTheme.typography.labelMedium
                                     )
                                 },
-                                selected = currentRoute == screen.route,
+                                selected = currentRoute == screen.route || (screen == Screen.Chat && currentRoute == Screen.LiveChat.route),
                                 onClick = {
                                     navController.navigate(screen.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
@@ -86,7 +86,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
                                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = Color.Transparent, // No indicator background
+                                    indicatorColor = Color.Transparent,
                                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -104,11 +104,10 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
         ) {
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Chat.route) { ChatScreen(navController) }
+            composable(Screen.LiveChat.route) { LiveChatScreen(navController) }
             composable(Screen.Timetable.route) { TimetableScreen() }
             composable(Screen.Stands.route) { StandsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
-
-            composable("live_chat") { LiveChatScreen(navController) }
         }
     }
 }

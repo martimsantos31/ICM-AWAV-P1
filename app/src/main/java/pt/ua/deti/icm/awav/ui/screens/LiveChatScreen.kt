@@ -192,7 +192,7 @@ fun LiveChatScreen(navController: NavController) {
                     Box(
                         modifier = Modifier
                             .width(200.dp)
-                            .padding(top = 48.dp) // Position below the button
+                            .padding(bottom = 48.dp) // Position above the button
                     ) {
                         Card(
                             shape = RoundedCornerShape(8.dp),
