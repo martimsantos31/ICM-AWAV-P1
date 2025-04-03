@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.theme
+package pt.ua.deti.icm.awav.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import pt.ua.deti.icm.e.ui.theme.AWAVTypography
 
 // Light Theme
 private val LightColorScheme = lightColorScheme(
@@ -43,7 +44,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun AWAVETheme(
+fun awavTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit

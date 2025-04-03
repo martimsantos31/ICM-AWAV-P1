@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.navigation
+package pt.ua.deti.icm.awav.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*

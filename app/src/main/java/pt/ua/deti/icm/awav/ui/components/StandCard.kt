@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.components
+package pt.ua.deti.icm.awav.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*

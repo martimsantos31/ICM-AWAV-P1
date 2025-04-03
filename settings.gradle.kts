@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AWAVE"
+rootProject.name = "awav"
 include(":app")

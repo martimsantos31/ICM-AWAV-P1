@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.data.model
+package pt.ua.deti.icm.awav.data.model
 
 data class UserProfile(
     val id: String = "",

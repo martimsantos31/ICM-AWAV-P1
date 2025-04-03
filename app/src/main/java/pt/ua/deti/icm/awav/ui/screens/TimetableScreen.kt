@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.screens
+package pt.ua.deti.icm.awav.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize

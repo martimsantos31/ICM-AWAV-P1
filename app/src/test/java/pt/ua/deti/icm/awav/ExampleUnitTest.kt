@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave
+package pt.ua.deti.icm.awav
 
 import org.junit.Test
 

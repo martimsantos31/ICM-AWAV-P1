@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.navigation
+package pt.ua.deti.icm.awav.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -13,7 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import pt.ua.deti.icm.awave.ui.screens.*
+import pt.ua.deti.icm.awav.ui.screens.*
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Filled.Home, Icons.Outlined.Home)
@@ -24,7 +24,7 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
 }
 
 @Composable
-fun AWAVENavigation() {
+fun awavNavigation() {
     val navController = rememberNavController()
     val screens = listOf(Screen.Home, Screen.Chat, Screen.Timetable, Screen.Stands, Screen.Profile)
     val navBackStackEntry by navController.currentBackStackEntryAsState()

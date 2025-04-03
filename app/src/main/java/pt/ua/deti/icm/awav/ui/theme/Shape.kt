@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.theme
+package pt.ua.deti.icm.awav.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes

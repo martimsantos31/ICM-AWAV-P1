@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awave.ui.screens
+package pt.ua.deti.icm.awav.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -14,7 +14,7 @@ fun HomeScreen() {
             .padding(16.dp)
     ) {
         Text(
-            text = "Welcome to AWAVE",
+            text = "Welcome to awav",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )

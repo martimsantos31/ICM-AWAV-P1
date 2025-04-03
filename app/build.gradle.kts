@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "pt.ua.deti.icm.awave"
+    namespace = "pt.ua.deti.icm.awav"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "pt.ua.deti.icm.awave"
+        applicationId = "pt.ua.deti.icm.awav"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

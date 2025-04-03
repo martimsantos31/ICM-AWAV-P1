@@ -1,8 +1,8 @@
-package pt.ua.deti.icm.awave.ui.theme
+package pt.ua.deti.icm.awav.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Color definitions based on AWAVE app
+// Color definitions based on awav app
 val Purple = Color(0xFF8B21C0)
 val DarkPurple = Color(0xFF6A0F99)
 val LightPurple = Color(0xFFAE60D1)

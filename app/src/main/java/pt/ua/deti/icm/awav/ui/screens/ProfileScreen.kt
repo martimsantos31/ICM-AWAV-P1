@@ -1,10 +1,8 @@
-package pt.ua.deti.icm.awave.ui.screens
+package pt.ua.deti.icm.awav.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -12,30 +10,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ChatScreen() {
+fun ProfileScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         Text(
-            text = "Live Chat",
+            text = "My Wallet",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        Button(
-            onClick = { /* TODO */ },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Live Chat")
-        }
-        
         Text(
-            text = "Recent Chats",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(vertical = 16.dp)
+            text = "7.20 $",
+            style = MaterialTheme.typography.displayMedium,
+            modifier = Modifier.padding(bottom = 32.dp)
         )
         
+        Text(
+            text = "Pay with",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // TODO: Add payment methods
     }
 } 
