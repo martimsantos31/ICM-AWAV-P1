@@ -1,6 +1,5 @@
 package pt.ua.deti.icm.awav.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -8,27 +7,31 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.model.Message
 import pt.ua.deti.icm.awav.data.model.MessageType
-import pt.ua.deti.icm.awav.ui.components.messages.ChatMessage
+import pt.ua.deti.icm.awav.ui.components.chat.messages.ChatMessage
+import pt.ua.deti.icm.awav.ui.components.chat.MessageInput
 import pt.ua.deti.icm.awav.ui.theme.Purple
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,7 +130,7 @@ fun LiveChatScreen(navController: NavController) {
             navigationIcon = {
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back"
                     )
                 }
@@ -172,7 +175,7 @@ fun LiveChatScreen(navController: NavController) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box {
+            Box(modifier = Modifier.zIndex(1f)) {
                 // Plus button
                 IconButton(
                     onClick = { showOptionsMenu = !showOptionsMenu },
@@ -187,19 +190,19 @@ fun LiveChatScreen(navController: NavController) {
                     )
                 }
 
-                // Popup menu for options
+                // Popup menu for options - positioned absolutely
                 if (showOptionsMenu) {
-                    Box(
-                        modifier = Modifier
-                            .width(200.dp)
-                            .padding(bottom = 48.dp) // Position above the button
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        offset = IntOffset(0, -160),
+                        onDismissRequest = { showOptionsMenu = false }
                     ) {
                         Card(
                             shape = RoundedCornerShape(8.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
                         ) {
                             Column(
-                                modifier = Modifier.padding(8.dp)
+                                modifier = Modifier.width(200.dp)
                             ) {
                                 // Location option
                                 Row(
@@ -258,49 +261,41 @@ fun LiveChatScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            TextField(
-                value = messageText,
-                onValueChange = { messageText = it },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                placeholder = { Text("Type a message") },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.LightGray.copy(alpha = 0.5f),
-                    unfocusedContainerColor = Color.LightGray.copy(alpha = 0.5f),
-                    disabledContainerColor = Color.LightGray.copy(alpha = 0.5f),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(24.dp),
-                singleLine = true
+            MessageInput(
+                messageText,
+                onMessageTextChange = { messageText = it },
+                modifier = Modifier.weight(1f),
+                onSend = {
+                    messageText = sendMessage(
+                        messageText,
+                        messages,
+                        listState,
+                        coroutineScope,
+                        true,
+                        R.drawable.user2
+                    )
+                }
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
             IconButton(
                 onClick = {
-                    if (messageText.isNotBlank()) {
-                        val newMessage = Message(
-                            id = (messages.size + 1).toString(),
-                            senderId = "currentUser",
-                            senderName = "Current User",
-                            content = messageText,
-                            type = MessageType.TEXT
-                        )
-                        messages.add(newMessage)
-                        messageText = ""
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(messages.size - 1)
-                        }
-                    }
+                    messageText = sendMessage(
+                        messageText,
+                        messages,
+                        listState,
+                        coroutineScope,
+                        true,
+                        R.drawable.user2
+                    )
                 },
                 modifier = Modifier
                     .size(40.dp)
                     .background(Purple, CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Send,
+                    imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send message",
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
@@ -309,7 +304,6 @@ fun LiveChatScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(8.dp))
     }
-
     // Click outside to dismiss the popup
     if (showOptionsMenu) {
         Box(
@@ -323,4 +317,29 @@ fun LiveChatScreen(navController: NavController) {
                 }
         )
     }
+}
+
+fun sendMessage(
+    messageText: String,
+    messages: MutableList<Message>,
+    listState: LazyListState,
+    coroutineScope: CoroutineScope,
+    isFromCurrentUser: Boolean,
+    avatarResId: Int
+): String {
+    if (messageText.isNotBlank()) {
+        val newMessage = Message(
+            id = (messages.size + 1).toString(),
+            senderId = "currentUser",
+            senderName = "Current User",
+            content = messageText,
+            type = MessageType.TEXT
+        )
+        messages.add(newMessage)
+        coroutineScope.launch {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+        return ""
+    }
+    return messageText
 }

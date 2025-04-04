@@ -1,12 +1,11 @@
-package pt.ua.deti.icm.awav.ui.components.messages
+package pt.ua.deti.icm.awav.ui.components.chat.messages
 
+import pt.ua.deti.icm.awav.R
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,8 +18,8 @@ import pt.ua.deti.icm.awav.ui.theme.LightPurple
 import pt.ua.deti.icm.awav.ui.theme.Purple
 
 @Composable
-fun TextMessage(
-    message: String,
+fun ImageMessage(
+    imageUrl: String,
     isFromCurrentUser: Boolean,
     avatarResId: Int? = null,
     modifier: Modifier = Modifier
@@ -33,14 +32,18 @@ fun TextMessage(
             Spacer(modifier = Modifier.weight(1f))
             Box(
                 modifier = Modifier
+                    .width(200.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Purple)
-                    .padding(AWAVStyles.chatMessagePadding)
+                    .padding(4.dp)
             ) {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.bodyMedium
+                Image(
+                    painter = painterResource(id = R.drawable.placeholder_image),
+                    contentDescription = "Image Message",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -73,14 +76,18 @@ fun TextMessage(
             Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
+                    .width(200.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(LightPurple)
-                    .padding(AWAVStyles.chatMessagePadding)
+                    .padding(4.dp)
             ) {
-                Text(
-                    text = message,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
+                Image(
+                    painter = painterResource(id = R.drawable.placeholder_image),
+                    contentDescription = "Image Message",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
                 )
             }
             Spacer(modifier = Modifier.weight(1f))

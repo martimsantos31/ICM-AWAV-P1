@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awav.ui.components.messages
+package pt.ua.deti.icm.awav.ui.components.chat.messages
 
 import pt.ua.deti.icm.awav.R
 import androidx.compose.foundation.Image

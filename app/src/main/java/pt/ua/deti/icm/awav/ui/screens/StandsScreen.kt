@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import pt.ua.deti.icm.awav.ui.components.StandCard
+import pt.ua.deti.icm.awav.ui.components.stands.StandCard
 
 @Composable
 fun StandsScreen() {

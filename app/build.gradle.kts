@@ -60,18 +60,18 @@ dependencies {
     implementation(libs.androidx.activity.compose)
 
     // Compose
-    implementation("androidx.compose.material3:material3:1.2.0")
-    implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
-    implementation("androidx.compose.material:material-icons-extended:1.6.1")
-    implementation("androidx.compose.runtime:runtime-livedata:1.6.1")
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material3.window.size.class1)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.runtime.livedata)
     implementation(libs.androidx.ui.tooling.preview)
     debugImplementation(libs.androidx.ui.tooling)
 
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation(libs.androidx.navigation.compose)
 
     // Coil for image loading
-    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation(libs.coil.compose)
 
     // Testing
     testImplementation(libs.junit)

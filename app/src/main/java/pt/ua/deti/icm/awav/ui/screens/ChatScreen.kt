@@ -20,9 +20,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import pt.ua.deti.icm.awav.R
-import pt.ua.deti.icm.awav.ui.components.ChatItem
+import pt.ua.deti.icm.awav.ui.components.chat.ChatItem
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
-import pt.ua.deti.icm.awav.ui.theme.Purple
 
 data class ChatPreview(
     val id: String,

@@ -1,4 +1,4 @@
-package pt.ua.deti.icm.awav.ui.components
+package pt.ua.deti.icm.awav.ui.components.chat
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
