@@ -36,10 +36,7 @@ fun EventCard(
             .height(AWAVStyles.eventCardHeight),
         shape = RoundedCornerShape(AWAVStyles.eventCardCornerRadius),
         colors = CardDefaults.cardColors(
-            containerColor = if (isPurple) Purple else Color.White
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (!isPurple) AWAVStyles.cardElevation else 0.dp
+            containerColor = if (isPurple) Purple else MaterialTheme.colorScheme.onSecondary
         )
     ) {
         Row(
@@ -54,19 +51,19 @@ fun EventCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isPurple) White else MaterialTheme.colorScheme.onSurface
+                    color = if (isPurple) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = location,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isPurple) White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isPurple) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.tertiary
                 )
             }
             Text(
                 text = time,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (isPurple) White else MaterialTheme.colorScheme.onSurface,
+                color = if (isPurple) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.End
             )
         }
