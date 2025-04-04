@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
+import androidx.core.view.WindowCompat.*
 
 // Light Theme - Updated to match mockups
 private val LightColorScheme = lightColorScheme(
@@ -65,7 +65,7 @@ fun awavTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb() // Make status bar match background
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
 
