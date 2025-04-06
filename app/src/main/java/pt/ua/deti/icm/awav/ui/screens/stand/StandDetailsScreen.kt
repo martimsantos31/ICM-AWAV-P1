@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
@@ -23,6 +24,8 @@ import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.repository.StandRepository
 import pt.ua.deti.icm.awav.ui.navigation.Screen
 import pt.ua.deti.icm.awav.ui.navigation.createRoute
+import pt.ua.deti.icm.awav.ui.screens.organizer.EventsData
+import pt.ua.deti.icm.awav.ui.screens.organizer.Stand
 import pt.ua.deti.icm.awav.ui.theme.Purple
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,10 +34,45 @@ fun StandDetailsScreen(
     standId: String,
     navController: NavController
 ) {
-    val stand = remember { StandRepository.getStandById(standId) }
+    // Try to find stand in the selected event first
+    val selectedEvent = remember { EventsData.selectedEvent }
+    val standFromEvent = remember(selectedEvent, standId) { 
+        selectedEvent?.stands?.find { it.id == standId }
+    }
+    
+    // Fallback to repository if not found in event
+    val standFromRepo = remember { StandRepository.getStandById(standId) }
+    
+    // Get stand name from either source
+    val standName = remember(standFromEvent, standFromRepo) {
+        when {
+            standFromEvent != null -> standFromEvent.name
+            standFromRepo != null -> standFromRepo.name
+            else -> "Unknown Stand"
+        }
+    }
+    
+    // Get stand description from either source
+    val standDescription = remember(standFromEvent, standFromRepo) {
+        when {
+            standFromEvent != null -> standFromEvent.description
+            standFromRepo != null -> standFromRepo.description
+            else -> ""
+        }
+    }
+    
+    // Get stand location from either source
+    val standLocation = remember(standFromEvent, standFromRepo) {
+        when {
+            standFromEvent != null -> standFromEvent.location
+            standFromRepo != null -> standFromRepo.location
+            else -> ""
+        }
+    }
+    
     val waitTime = remember { StandRepository.getWaitTime(standId) }
     
-    if (stand == null) {
+    if (standFromEvent == null && standFromRepo == null) {
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -49,7 +87,7 @@ fun StandDetailsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stand.name,
+                        text = standName,
                         style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
@@ -86,13 +124,49 @@ fun StandDetailsScreen(
                 // For now, we'll use R.drawable.chorizo
                 Image(
                     painter = painterResource(id = R.drawable.chorizo),
-                    contentDescription = stand.name,
+                    contentDescription = standName,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            // Stand information
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 16.dp, bottom = 8.dp)
+            ) {
+                if (standDescription.isNotBlank()) {
+                    Text(
+                        text = standDescription,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                if (standLocation.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = Purple,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = standLocation,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
             
             // Menu Button
             Card(

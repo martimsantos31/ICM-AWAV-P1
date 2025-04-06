@@ -223,7 +223,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     Box(modifier = Modifier.fillMaxSize())
                 }
             }
-            composable(Screen.Timetable.route) { TimetableScreen() }
+            composable(Screen.Timetable.route) { ScheduleScreen(navController) }
             composable(Screen.Stands.route) { StandsScreen(navController) }
             composable(Screen.Profile.route) { ProfileScreen(navController) }
             
