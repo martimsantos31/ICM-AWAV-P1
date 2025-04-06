@@ -20,6 +20,12 @@ import androidx.compose.ui.res.painterResource
 import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.model.UserRole
 import android.util.Log
+import androidx.activity.ComponentActivity
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun RegisterScreen(
@@ -49,6 +55,43 @@ fun RegisterScreen(
             
             // Pass the selected role to the callback
             selectedRole?.let { onRegisterSuccess(it) }
+        }
+    }
+    
+    // Create an activity result launcher for Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            
+            // Use the ID token to sign in with Firebase
+            if (account != null && account.idToken != null) {
+                if (selectedRole != null) {
+                    viewModel.authenticateWithGoogleToken(account.idToken!!) { success, message ->
+                        if (success) {
+                            // The LaunchedEffect with currentUser will handle navigation on success
+                        } else {
+                            Toast.makeText(context, message ?: "Google sign-up failed", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else {
+                    viewModel.setGoogleLoading(false)
+                    Toast.makeText(context, "Please select a role first", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                viewModel.setGoogleLoading(false)
+                Toast.makeText(context, "Google sign-up failed: No ID token", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: ApiException) {
+            viewModel.setGoogleLoading(false)
+            Log.e("RegisterScreen", "Google sign-up failed with status code: ${e.statusCode}", e)
+            Toast.makeText(context, "Google sign-up failed: ${e.message}", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            viewModel.setGoogleLoading(false)
+            Log.e("RegisterScreen", "Google sign-up unexpected error: ${e.message}", e)
+            Toast.makeText(context, "Google sign-up error: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -142,20 +185,29 @@ fun RegisterScreen(
         val googleLoading by viewModel.repositoryLoading.collectAsState()
         OutlinedButton(
             onClick = {
-                if (selectedRole != null) {
-                    Log.d("RegisterScreen", "Starting Google sign-up process")
-                    viewModel.signUpWithGoogle { success, errorMessage ->
-                        Log.d("RegisterScreen", "Google sign-up result: $success, error: $errorMessage")
-                        if (!success) {
-                            Toast.makeText(
-                                context,
-                                errorMessage ?: "Google sign-up failed. Please try again.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        // The LaunchedEffect with currentUser will handle navigation on success
+                if (selectedRole != null && !googleLoading) {
+                    Log.d("RegisterScreen", "Starting Google sign-up directly with launcher")
+                    try {
+                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                            .requestIdToken(context.getString(R.string.default_web_client_id))
+                            .requestEmail()
+                            .build()
+                        
+                        val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                        viewModel.setGoogleLoading(true)
+                        
+                        // Launch using the ActivityResultLauncher
+                        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                    } catch (e: Exception) {
+                        Log.e("RegisterScreen", "Failed to start Google sign-up: ${e.message}", e)
+                        Toast.makeText(
+                            context,
+                            "Error starting Google sign-up: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        viewModel.setGoogleLoading(false)
                     }
-                } else {
+                } else if (selectedRole == null) {
                     Toast.makeText(
                         context,
                         "Please select a role first",
@@ -174,10 +226,17 @@ fun RegisterScreen(
             enabled = !googleLoading && selectedRole != null
         ) {
             if (googleLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = Color(0xFF4285F4)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFF4285F4)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Signing up with Google...")
+                }
             } else {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

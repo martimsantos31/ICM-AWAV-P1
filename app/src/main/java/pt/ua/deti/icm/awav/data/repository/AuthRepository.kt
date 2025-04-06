@@ -3,6 +3,7 @@ package pt.ua.deti.icm.awav.data
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.ktx.auth
@@ -13,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import pt.ua.deti.icm.awav.data.GoogleAuthHelper
 import pt.ua.deti.icm.awav.data.model.UserRole
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.tasks.await
 
 class AuthRepository(private val context: Context) {
     
@@ -39,6 +42,10 @@ class AuthRepository(private val context: Context) {
         if (auth.currentUser != null) {
             fetchUserRoles(auth.currentUser!!.email!!)
         }
+        
+        // Register this instance for static access
+        INSTANCE = this
+        Log.d(TAG, "AuthRepository initialized and registered for static access")
     }
     
     fun checkAuthState() {
@@ -182,64 +189,42 @@ class AuthRepository(private val context: Context) {
      * Sign in with Google
      */
     suspend fun signInWithGoogle(
+        activity: ComponentActivity? = null,
         role: UserRole? = null, 
         onComplete: (Boolean, String?) -> Unit
     ) {
         _isLoading.value = true
         
         try {
-            googleAuthHelper.signInWithGoogle(
+            // Create a helper with the appropriate context
+            val helper = if (activity != null) {
+                GoogleAuthHelper(activity)
+            } else {
+                googleAuthHelper
+            }
+            
+            // For Android 12 devices, we need to use the activity directly
+            if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.S && activity != null) {
+                Log.d(TAG, "Using direct activity approach for Android 12")
+                
+                // Set up legacy callback to handle the result later
+                googleAuthLegacyCallback = { success, errorMsg ->
+                    _isLoading.value = false
+                    onComplete(success, errorMsg)
+                }
+                
+                // Store the role for later use after successful auth
+                pendingGoogleRole = role
+                
+                // Launch the Google Sign-in UI directly from the activity
+                helper.signInWithGoogleFromActivity(activity)
+                return
+            }
+            
+            // For Android 13+, use the suspend function
+            helper.signInWithGoogle(
                 onSuccess = { user ->
-                    _currentUser.value = user
-                    
-                    // If a role is provided, add it to the user document
-                    user.email?.let { email ->
-                        if (role != null) {
-                            // Add the selected role
-                            addRoleToUser(email, role) { success ->
-                                if (!success) {
-                                    val errorMsg = "Signed in with Google but failed to assign role"
-                                    Toast.makeText(
-                                        context,
-                                        errorMsg,
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    _isLoading.value = false
-                                    onComplete(true, errorMsg)
-                                } else {
-                                    _isLoading.value = false
-                                    onComplete(true, null)
-                                }
-                            }
-                        } else {
-                            // Just fetch existing roles
-                            fetchUserRoles(email) { roles ->
-                                if (roles.isEmpty()) {
-                                    val errorMsg = "Signed in but no roles found for this account"
-                                    Toast.makeText(
-                                        context,
-                                        errorMsg,
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    _isLoading.value = false
-                                    onComplete(true, errorMsg)
-                                } else {
-                                    _isLoading.value = false
-                                    onComplete(true, null)
-                                }
-                            }
-                        }
-                    } ?: run {
-                        // Handle case where user has no email
-                        val errorMsg = "Google Sign-in successful but no email found"
-                        Toast.makeText(
-                            context,
-                            errorMsg,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        _isLoading.value = false
-                        onComplete(false, errorMsg)
-                    }
+                    handleGoogleSignInSuccess(user, role, onComplete)
                 },
                 onFailure = { e ->
                     Log.e(TAG, "Google sign-in failed", e)
@@ -254,8 +239,83 @@ class AuthRepository(private val context: Context) {
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during Google sign-in", e)
-            val errorMsg = "Google Sign-in error: ${e.message}"
+            Log.e(TAG, "Unexpected error during Google sign-in", e)
+            val errorMsg = "Unexpected error: ${e.message}"
+            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+            _isLoading.value = false
+            onComplete(false, errorMsg)
+        }
+    }
+    
+    // Temporary storage for callbacks and role during legacy auth
+    private var googleAuthLegacyCallback: ((Boolean, String?) -> Unit)? = null
+    private var pendingGoogleRole: UserRole? = null
+    
+    /**
+     * This method should be called from GoogleAuthHelper when legacy auth completes
+     */
+    fun onLegacyGoogleSignInComplete(user: FirebaseUser) {
+        val role = pendingGoogleRole
+        val callback = googleAuthLegacyCallback
+        
+        pendingGoogleRole = null
+        googleAuthLegacyCallback = null
+        
+        if (callback != null) {
+            handleGoogleSignInSuccess(user, role, callback)
+        }
+    }
+    
+    /**
+     * Shared logic for handling successful Google sign-in
+     */
+    private fun handleGoogleSignInSuccess(
+        user: FirebaseUser,
+        role: UserRole?,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        _currentUser.value = user
+        
+        // If a role is provided, add it to the user document
+        user.email?.let { email: String ->
+            if (role != null) {
+                // Add the selected role
+                addRoleToUser(email, role) { success ->
+                    if (!success) {
+                        val errorMsg = "Signed in with Google but failed to assign role"
+                        Toast.makeText(
+                            context,
+                            errorMsg,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        _isLoading.value = false
+                        onComplete(true, errorMsg)
+                    } else {
+                        _isLoading.value = false
+                        onComplete(true, null)
+                    }
+                }
+            } else {
+                // Just fetch existing roles
+                fetchUserRoles(email) { roles ->
+                    if (roles.isEmpty()) {
+                        val errorMsg = "Signed in but no roles found for this account"
+                        Toast.makeText(
+                            context,
+                            errorMsg,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        _isLoading.value = false
+                        onComplete(true, errorMsg)
+                    } else {
+                        _isLoading.value = false
+                        onComplete(true, null)
+                    }
+                }
+            }
+        } ?: run {
+            // Handle case where user has no email
+            val errorMsg = "Google Sign-in successful but no email found"
             Toast.makeText(
                 context,
                 errorMsg,
@@ -272,7 +332,109 @@ class AuthRepository(private val context: Context) {
         _userRoles.value = emptyList()
     }
     
+    /**
+     * Set the loading state directly
+     */
+    fun setLoading(isLoading: Boolean) {
+        _isLoading.value = isLoading
+    }
+    
+    /**
+     * Authenticate directly with a Google ID token
+     */
+    suspend fun authenticateWithGoogleToken(
+        idToken: String,
+        role: UserRole?,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        _isLoading.value = true
+        
+        try {
+            // Create a credential from the ID token
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            
+            // Sign in with Firebase
+            val authResult = auth.signInWithCredential(credential).await()
+            val user = authResult.user
+            
+            if (user != null) {
+                _currentUser.value = user
+                Log.d(TAG, "Successfully authenticated with Google token for user: ${user.email}")
+                
+                // Process role selection or fetch existing roles
+                user.email?.let { email: String ->
+                    if (role != null) {
+                        // Add the selected role
+                        addRoleToUser(email, role) { success ->
+                            if (!success) {
+                                val errorMsg = "Signed in with Google but failed to assign role"
+                                Log.w(TAG, errorMsg)
+                                _isLoading.value = false
+                                onComplete(true, errorMsg)
+                            } else {
+                                _isLoading.value = false
+                                onComplete(true, null)
+                            }
+                        }
+                    } else {
+                        // Just fetch existing roles
+                        fetchUserRoles(email) { roles ->
+                            if (roles.isEmpty()) {
+                                val errorMsg = "Signed in but no roles found for this account"
+                                Log.w(TAG, errorMsg)
+                                _isLoading.value = false
+                                onComplete(true, errorMsg)
+                            } else {
+                                _isLoading.value = false
+                                onComplete(true, null)
+                            }
+                        }
+                    }
+                } ?: run {
+                    // Handle case where user has no email
+                    val errorMsg = "Google Sign-in successful but no email found"
+                    Log.w(TAG, errorMsg)
+                    _isLoading.value = false
+                    onComplete(false, errorMsg)
+                }
+            } else {
+                val errorMsg = "Firebase auth successful but user is null"
+                Log.e(TAG, errorMsg)
+                _isLoading.value = false
+                onComplete(false, errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error authenticating with Google token: ${e.message}", e)
+            _isLoading.value = false
+            onComplete(false, "Authentication failed: ${e.message}")
+        }
+    }
+    
     companion object {
         private const val TAG = "AuthRepository"
+        
+        // Keep a single instance that can be accessed from GoogleAuthHelper
+        @Volatile
+        private var INSTANCE: AuthRepository? = null
+        
+        fun getInstance(context: Context): AuthRepository {
+            return INSTANCE ?: synchronized(this) {
+                val instance = AuthRepository(context)
+                INSTANCE = instance
+                instance
+            }
+        }
+        
+        /**
+         * Reset the loading state - can be called externally (e.g. from GoogleAuthHelper)
+         */
+        fun resetLoadingState() {
+            INSTANCE?.let {
+                it._isLoading.value = false
+                it.googleAuthLegacyCallback = null
+                it.pendingGoogleRole = null
+                Log.d(TAG, "Loading state and callbacks reset")
+            }
+        }
     }
 } 

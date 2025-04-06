@@ -1,6 +1,7 @@
 package pt.ua.deti.icm.awav.ui.screens.auth
 
 import android.content.Context
+import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -46,6 +47,31 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         _selectedRole.value = role
     }
     
+    // Add method to directly set Google loading state
+    fun setGoogleLoading(isLoading: Boolean) {
+        viewModelScope.launch {
+            authRepository.setLoading(isLoading)
+        }
+    }
+    
+    /**
+     * Authenticate directly with a Google ID token
+     */
+    fun authenticateWithGoogleToken(idToken: String, onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.authenticateWithGoogleToken(
+                    idToken = idToken,
+                    role = _selectedRole.value,
+                    onComplete = onComplete
+                )
+            } catch (e: Exception) {
+                onComplete(false, "Authentication error: ${e.message}")
+                setGoogleLoading(false)
+            }
+        }
+    }
+    
     // Auth functions
     fun signIn(onComplete: (Boolean) -> Unit) {
         _loading.value = true
@@ -69,9 +95,10 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
     
-    fun signInWithGoogle(onComplete: (Boolean, String?) -> Unit) {
+    fun signInWithGoogle(activity: ComponentActivity, onComplete: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             authRepository.signInWithGoogle(
+                activity = activity,
                 role = _selectedRole.value
             ) { success, errorMessage ->
                 onComplete(success, errorMessage)
@@ -79,7 +106,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
     
-    fun signUpWithGoogle(onComplete: (Boolean, String?) -> Unit) {
+    fun signUpWithGoogle(activity: ComponentActivity, onComplete: (Boolean, String?) -> Unit) {
         val selectedRole = _selectedRole.value
         if (selectedRole == null) {
             onComplete(false, "Please select a role first")
@@ -88,6 +115,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         
         viewModelScope.launch {
             authRepository.signInWithGoogle(
+                activity = activity,
                 role = selectedRole
             ) { success, errorMessage ->
                 onComplete(success, errorMessage)

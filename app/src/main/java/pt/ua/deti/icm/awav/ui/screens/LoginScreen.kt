@@ -31,6 +31,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.BorderStroke
+import androidx.activity.ComponentActivity
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
+// Constants for the Google Sign-In process
+private const val RC_SIGN_IN = 9001
 
 @Composable
 fun LoginScreen(
@@ -51,6 +61,44 @@ fun LoginScreen(
     
     // Firebase auth instance
     val auth = remember { Firebase.auth }
+    
+    // Create an activity result launcher for Google Sign-In
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            val account = task.getResult(ApiException::class.java)
+            
+            // Use the ID token to sign in with Firebase
+            if (account != null && account.idToken != null) {
+                viewModel.authenticateWithGoogleToken(account.idToken!!) { success, message ->
+                    if (success) {
+                        if (selectedRole != null) {
+                            onLoginSuccess(selectedRole!!)
+                        } else if (userRoles.size == 1) {
+                            onLoginSuccess(userRoles.first())
+                        } else {
+                            showRoleDialog = true
+                        }
+                    } else {
+                        Toast.makeText(context, message ?: "Google sign-in failed", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } else {
+                viewModel.setGoogleLoading(false)
+                Toast.makeText(context, "Google sign-in failed: No ID token", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: ApiException) {
+            viewModel.setGoogleLoading(false)
+            Log.e("LoginScreen", "Google sign-in failed with status code: ${e.statusCode}", e)
+            Toast.makeText(context, "Google sign-in failed: ${e.message}", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            viewModel.setGoogleLoading(false)
+            Log.e("LoginScreen", "Google sign-in unexpected error: ${e.message}", e)
+            Toast.makeText(context, "Google sign-in error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
     
     Box(
         modifier = Modifier
@@ -167,28 +215,31 @@ fun LoginScreen(
             val googleLoading by viewModel.repositoryLoading.collectAsState()
             OutlinedButton(
                 onClick = {
-                    Log.d("LoginScreen", "Starting Google sign-in")
-                    viewModel.signInWithGoogle { success, errorMessage ->
-                        Log.d("LoginScreen", "Google sign-in result: $success, error: $errorMessage")
-                        if (success) {
-                            val currentRole = selectedRole
-                            if (currentRole != null) {
-                                // If they've already selected a role, use it
-                                onLoginSuccess(currentRole)
-                            } else if (userRoles.size == 1) {
-                                // If only one role available, use it automatically
-                                onLoginSuccess(userRoles.first())
-                            } else {
-                                // Otherwise, show the dialog
-                                showRoleDialog = true
-                            }
-                        } else {
+                    // Only proceed if not already loading
+                    if (!googleLoading) {
+                        Log.d("LoginScreen", "Starting Google sign-in directly with launcher")
+                        try {
+                            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(context.getString(R.string.default_web_client_id))
+                                .requestEmail()
+                                .build()
+                            
+                            val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                            viewModel.setGoogleLoading(true)
+                            
+                            // Launch using the ActivityResultLauncher
+                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                        } catch (e: Exception) {
+                            Log.e("LoginScreen", "Failed to start Google sign-in: ${e.message}", e)
                             Toast.makeText(
                                 context,
-                                errorMessage ?: "Google sign-in failed. Please try again.",
+                                "Error starting Google sign-in: ${e.message}",
                                 Toast.LENGTH_LONG
                             ).show()
+                            viewModel.setGoogleLoading(false)
                         }
+                    } else {
+                        Log.d("LoginScreen", "Ignoring click while already loading")
                     }
                 },
                 modifier = Modifier
@@ -202,10 +253,17 @@ fun LoginScreen(
                 enabled = !googleLoading
             ) {
                 if (googleLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color(0xFF4285F4)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF4285F4)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Signing in with Google...")
+                    }
                 } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
