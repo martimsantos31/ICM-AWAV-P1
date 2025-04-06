@@ -17,15 +17,30 @@ import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.model.UserRole
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.theme.Purple
+import android.util.Log
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import pt.ua.deti.icm.awav.data.AuthRepository
+import pt.ua.deti.icm.awav.ui.navigation.Screen
+import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (UserRole) -> Unit
+    onLoginSuccess: (UserRole) -> Unit,
+    navController: NavController? = null
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf<UserRole?>(null) }
     var showRoleDialog by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Firebase auth instance
+    val auth = remember { Firebase.auth }
     
     Box(
         modifier = Modifier
@@ -75,24 +90,62 @@ fun LoginScreen(
                 shape = RoundedCornerShape(8.dp)
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Error message
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
             
             Button(
-                onClick = { showRoleDialog = true },
+                onClick = { 
+                    loading = true
+                    errorMessage = null
+                    
+                    // First authenticate with Firebase
+                    auth.signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            loading = false
+                            if (task.isSuccessful) {
+                                Log.d("LoginScreen", "signInWithEmail:success")
+                                showRoleDialog = true
+                            } else {
+                                Log.w("LoginScreen", "signInWithEmail:failure", task.exception)
+                                errorMessage = task.exception?.message ?: "Authentication failed"
+                            }
+                        }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(AWAVStyles.buttonHeight),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Purple
-                )
+                ),
+                enabled = !loading && email.isNotEmpty() && password.isNotEmpty()
             ) {
-                Text("Login")
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("Login")
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            TextButton(onClick = { /* TODO: Navigate to registration */ }) {
+            TextButton(onClick = { 
+                navController?.navigate(Screen.Register.route)
+            }) {
                 Text("Don't have an account? Sign up")
             }
         }

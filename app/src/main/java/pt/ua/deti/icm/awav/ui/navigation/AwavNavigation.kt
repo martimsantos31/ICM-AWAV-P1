@@ -39,9 +39,13 @@ import pt.ua.deti.icm.awav.ui.screens.stand.*
 import pt.ua.deti.icm.awav.ui.screens.worker.ManageStandScreen
 import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
+import androidx.lifecycle.viewmodel.compose.viewModel
+import pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen
+import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
+    data object Register : Screen("register", "Register", Icons.Filled.PersonAdd, Icons.Outlined.PersonAdd)
     data object Home : Screen("home", "Home", Icons.Filled.Home, Icons.Outlined.Home)
     data object Chat : Screen("chat", "Chat", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat)
     data object LiveChat : Screen("live_chat", "Live Chat", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat)
@@ -174,7 +178,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             startDestination = Screen.Login.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // Auth screen
+            // Auth screens
             composable(Screen.Login.route) { 
                 LoginScreen(
                     onLoginSuccess = { role ->
@@ -190,6 +194,23 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                         
                         navController.navigate(startRoute) {
                             popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    navController = navController
+                )
+            }
+            
+            composable(Screen.Register.route) {
+                RegisterScreen(
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
+                    },
+                    onRegisterSuccess = {
+                        // Navigate to home screen after successful registration
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
                         }
                     }
                 )
