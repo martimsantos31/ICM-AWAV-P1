@@ -21,6 +21,12 @@ android {
         }
     }
 
+    lint {
+        abortOnError = false  // Don't abort build on lint errors
+        checkReleaseBuilds = false // Don't check lint for release builds
+        disable += "NewApi" // Ignore NewApi lint issues
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

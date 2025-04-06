@@ -2,6 +2,7 @@ package pt.ua.deti.icm.awav.ui.components.stands
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,7 +38,8 @@ fun StandCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .clickable { onDetailsClick() },
         shape = RoundedCornerShape(AWAVStyles.cardCornerRadius),
         elevation = CardDefaults.cardElevation(
             defaultElevation = AWAVStyles.cardElevation
