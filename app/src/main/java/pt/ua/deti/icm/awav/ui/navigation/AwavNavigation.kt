@@ -201,15 +201,27 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             }
             
             composable(Screen.Register.route) {
+                // Don't change login state here
                 RegisterScreen(
                     onNavigateToLogin = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Register.route) { inclusive = true }
                         }
                     },
-                    onRegisterSuccess = {
+                    onRegisterSuccess = { role ->
+                        // Set login state and user role
+                        isLoggedIn = true
+                        userRole = role
+                        
+                        // Navigate to appropriate starting screen based on role
+                        val startRoute = when (role) {
+                            UserRole.ORGANIZER -> Screen.ManageEvents.route
+                            UserRole.STAND_WORKER -> Screen.ManageStand.route
+                            UserRole.PARTICIPANT -> Screen.Home.route
+                        }
+                        
                         // Navigate to home screen after successful registration
-                        navController.navigate(Screen.Home.route) {
+                        navController.navigate(startRoute) {
                             popUpTo(Screen.Register.route) { inclusive = true }
                         }
                     }

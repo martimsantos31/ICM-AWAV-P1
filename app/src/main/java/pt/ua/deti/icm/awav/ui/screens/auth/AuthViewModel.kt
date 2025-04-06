@@ -9,11 +9,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import pt.ua.deti.icm.awav.data.AuthRepository
+import pt.ua.deti.icm.awav.data.model.UserRole
 
 class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     
     // Auth state
     val currentUser = authRepository.currentUser
+    val userRoles = authRepository.userRoles
     
     // UI state
     private val _email = MutableStateFlow("")
@@ -21,6 +23,9 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     
     private val _password = MutableStateFlow("")
     val password: StateFlow<String> = _password.asStateFlow()
+    
+    private val _selectedRole = MutableStateFlow<UserRole?>(null)
+    val selectedRole: StateFlow<UserRole?> = _selectedRole.asStateFlow()
     
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
@@ -34,6 +39,10 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         _password.value = password
     }
     
+    fun updateSelectedRole(role: UserRole?) {
+        _selectedRole.value = role
+    }
+    
     // Auth functions
     fun signIn(onComplete: (Boolean) -> Unit) {
         _loading.value = true
@@ -44,10 +53,22 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
     
     fun signUp(onComplete: (Boolean) -> Unit) {
+        val selectedRole = _selectedRole.value
+        if (selectedRole == null) {
+            onComplete(false)
+            return
+        }
+        
         _loading.value = true
-        authRepository.signUp(_email.value, _password.value) { success ->
+        authRepository.signUp(_email.value, _password.value, selectedRole) { success ->
             _loading.value = false
             onComplete(success)
+        }
+    }
+    
+    fun fetchUserRoles(onComplete: (List<UserRole>) -> Unit) {
+        authRepository.fetchUserRoles(_email.value) { roles ->
+            onComplete(roles)
         }
     }
     

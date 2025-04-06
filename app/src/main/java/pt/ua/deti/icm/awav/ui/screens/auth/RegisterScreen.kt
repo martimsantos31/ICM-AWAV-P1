@@ -1,37 +1,50 @@
 package pt.ua.deti.icm.awav.ui.screens.auth
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 import pt.ua.deti.icm.awav.data.model.UserRole
 
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
-    onRegisterSuccess: () -> Unit,
+    onRegisterSuccess: (UserRole) -> Unit,
     viewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
 ) {
     val email by viewModel.email.collectAsState()
     val password by viewModel.password.collectAsState()
+    val selectedRole by viewModel.selectedRole.collectAsState()
     val loading by viewModel.loading.collectAsState()
+    val context = LocalContext.current
     
-    // Local state for role selection
-    var selectedRole by remember { mutableStateOf<UserRole?>(UserRole.PARTICIPANT) }
+    // Local state for dialog control
     var showRoleDialog by remember { mutableStateOf(false) }
     
     // Check if user is already registered and logged in
     val currentUser by viewModel.currentUser.collectAsState()
     LaunchedEffect(currentUser) {
         if (currentUser != null) {
-            onRegisterSuccess()
+            // Show success message
+            Toast.makeText(
+                context,
+                "Successfully registered as ${selectedRole?.name?.lowercase() ?: "user"}!",
+                Toast.LENGTH_LONG
+            ).show()
+            
+            // Pass the selected role to the callback
+            selectedRole?.let { onRegisterSuccess(it) }
         }
     }
     
@@ -94,7 +107,7 @@ fun RegisterScreen(
         Button(
             onClick = {
                 viewModel.signUp { success ->
-                    if (success) onRegisterSuccess()
+                    // The LaunchedEffect will handle navigation on success
                 }
             },
             modifier = Modifier
@@ -134,7 +147,7 @@ fun RegisterScreen(
                     ) {
                         RadioButton(
                             selected = selectedRole == UserRole.PARTICIPANT,
-                            onClick = { selectedRole = UserRole.PARTICIPANT }
+                            onClick = { viewModel.updateSelectedRole(UserRole.PARTICIPANT) }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Event Participant")
@@ -148,7 +161,7 @@ fun RegisterScreen(
                     ) {
                         RadioButton(
                             selected = selectedRole == UserRole.STAND_WORKER,
-                            onClick = { selectedRole = UserRole.STAND_WORKER }
+                            onClick = { viewModel.updateSelectedRole(UserRole.STAND_WORKER) }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Stand Worker")
@@ -162,7 +175,7 @@ fun RegisterScreen(
                     ) {
                         RadioButton(
                             selected = selectedRole == UserRole.ORGANIZER,
-                            onClick = { selectedRole = UserRole.ORGANIZER }
+                            onClick = { viewModel.updateSelectedRole(UserRole.ORGANIZER) }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Event Organizer")
