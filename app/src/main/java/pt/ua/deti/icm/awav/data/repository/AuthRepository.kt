@@ -16,6 +16,9 @@ import pt.ua.deti.icm.awav.data.GoogleAuthHelper
 import pt.ua.deti.icm.awav.data.model.UserRole
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
+import android.net.Uri
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.auth.UserProfileChangeRequest
 
 class AuthRepository(private val context: Context) {
     
@@ -125,24 +128,55 @@ class AuthRepository(private val context: Context) {
             }
     }
     
-    fun signUp(email: String, password: String, role: UserRole, onComplete: (Boolean) -> Unit) {
+    fun signUp(
+        email: String, 
+        password: String, 
+        displayName: String,
+        profilePicUri: Uri?,
+        role: UserRole, 
+        onComplete: (Boolean) -> Unit
+    ) {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
                     Log.d(TAG, "createUserWithEmail:success")
-                    _currentUser.value = auth.currentUser
+                    val user = auth.currentUser
+                    _currentUser.value = user
                     
-                    // Add the selected role to the user document
-                    addRoleToUser(email, role) { success ->
-                        if (!success) {
+                    // Create user document data with default values and role
+                    val userData = hashMapOf(
+                        "roles" to listOf(role.name),
+                        "email" to email,
+                        "displayName" to displayName,
+                        "profileCreatedAt" to com.google.firebase.Timestamp.now()
+                    )
+                    
+                    // Add the user document to Firestore
+                    usersCollection.document(email)
+                        .set(userData)
+                        .addOnSuccessListener {
+                            // Update the Firebase User profile with display name
+                            updateUserProfile(displayName, profilePicUri) { profileUpdateSuccess ->
+                                if (!profileUpdateSuccess) {
+                                    Log.w(TAG, "Failed to update user profile")
+                                    Toast.makeText(
+                                        context,
+                                        "Account created but failed to set profile details",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                onComplete(true)
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            Log.w(TAG, "Error creating user document", e)
                             Toast.makeText(
                                 context,
-                                "Created account but failed to assign role",
+                                "Account created but failed to set user data",
                                 Toast.LENGTH_SHORT
                             ).show()
+                            onComplete(true) // Still consider signup successful
                         }
-                        onComplete(true)
-                    }
                 } else {
                     Log.w(TAG, "createUserWithEmail:failure", task.exception)
                     Toast.makeText(
@@ -150,6 +184,75 @@ class AuthRepository(private val context: Context) {
                         "Registration failed: ${task.exception?.message}",
                         Toast.LENGTH_SHORT,
                     ).show()
+                    onComplete(false)
+                }
+            }
+    }
+    
+    private fun updateUserProfile(displayName: String, profilePicUri: Uri?, onComplete: (Boolean) -> Unit) {
+        val user = auth.currentUser ?: return onComplete(false)
+        
+        if (profilePicUri != null) {
+            // Upload image to Firebase Storage
+            val storageRef = FirebaseStorage.getInstance().reference
+            val profileImagesRef = storageRef.child("profile_images/${user.uid}.jpg")
+            
+            profileImagesRef.putFile(profilePicUri)
+                .addOnSuccessListener {
+                    // Get the download URL
+                    profileImagesRef.downloadUrl
+                        .addOnSuccessListener { downloadUri: Uri ->
+                            // Update user profile with display name and photo URL
+                            updateUserProfileData(user, displayName, downloadUri, onComplete)
+                            
+                            // Update the user document in Firestore with the photo URL
+                            user.email?.let { email ->
+                                usersCollection.document(email)
+                                    .update("photoUrl", downloadUri.toString())
+                                    .addOnFailureListener { e ->
+                                        Log.w(TAG, "Error updating profile photo URL in Firestore", e)
+                                    }
+                            }
+                        }
+                        .addOnFailureListener { e: Exception ->
+                            Log.w(TAG, "Error getting download URL for profile image", e)
+                            // Still update profile with name only
+                            updateUserProfileData(user, displayName, null, onComplete)
+                        }
+                }
+                .addOnFailureListener { e: Exception ->
+                    Log.w(TAG, "Error uploading profile image", e)
+                    // Still update profile with name only
+                    updateUserProfileData(user, displayName, null, onComplete)
+                }
+        } else {
+            // Update user profile with display name only
+            updateUserProfileData(user, displayName, null, onComplete)
+        }
+    }
+    
+    private fun updateUserProfileData(
+        user: FirebaseUser, 
+        displayName: String, 
+        photoUri: Uri?,
+        onComplete: (Boolean) -> Unit
+    ) {
+        val profileUpdates = UserProfileChangeRequest.Builder()
+            .setDisplayName(displayName)
+            
+        if (photoUri != null) {
+            profileUpdates.setPhotoUri(photoUri)
+        }
+        
+        user.updateProfile(profileUpdates.build())
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "User profile updated successfully")
+                    // Update currentUser to reflect changes
+                    _currentUser.value = auth.currentUser
+                    onComplete(true)
+                } else {
+                    Log.w(TAG, "Failed to update user profile", task.exception)
                     onComplete(false)
                 }
             }
@@ -342,72 +445,75 @@ class AuthRepository(private val context: Context) {
     /**
      * Authenticate directly with a Google ID token
      */
-    suspend fun authenticateWithGoogleToken(
+    fun authenticateWithGoogleToken(
         idToken: String,
-        role: UserRole?,
+        role: UserRole? = null,
         onComplete: (Boolean, String?) -> Unit
     ) {
-        _isLoading.value = true
-        
-        try {
-            // Create a credential from the ID token
-            val credential = GoogleAuthProvider.getCredential(idToken, null)
-            
-            // Sign in with Firebase
-            val authResult = auth.signInWithCredential(credential).await()
-            val user = authResult.user
-            
-            if (user != null) {
-                _currentUser.value = user
-                Log.d(TAG, "Successfully authenticated with Google token for user: ${user.email}")
-                
-                // Process role selection or fetch existing roles
-                user.email?.let { email: String ->
-                    if (role != null) {
-                        // Add the selected role
-                        addRoleToUser(email, role) { success ->
-                            if (!success) {
-                                val errorMsg = "Signed in with Google but failed to assign role"
-                                Log.w(TAG, errorMsg)
-                                _isLoading.value = false
-                                onComplete(true, errorMsg)
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = auth.currentUser
+                    _currentUser.value = user
+                    
+                    if (user != null) {
+                        // Get user details from Google account
+                        val displayName = user.displayName ?: ""
+                        val email = user.email ?: ""
+                        val photoUrl = user.photoUrl?.toString()
+                        
+                        // Check if this is a new or existing user
+                        val isNewUser = task.result?.additionalUserInfo?.isNewUser ?: false
+                        
+                        if (isNewUser && role != null) {
+                            // Create new user document with Google profile info
+                            val userData = hashMapOf(
+                                "roles" to listOf(role.name),
+                                "email" to email,
+                                "displayName" to displayName,
+                                "photoUrl" to photoUrl,
+                                "profileCreatedAt" to com.google.firebase.Timestamp.now(),
+                                "authProvider" to "google"
+                            )
+                            
+                            usersCollection.document(email)
+                                .set(userData)
+                                .addOnSuccessListener {
+                                    fetchUserRoles(email)
+                                    _isLoading.value = false
+                                    onComplete(true, null)
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.w(TAG, "Error creating user document", e)
+                                    _isLoading.value = false
+                                    onComplete(true, "Signed in with Google but failed to save user data")
+                                }
+                        } else {
+                            // Existing user - check if they have the selected role
+                            if (role != null) {
+                                addRoleToUser(email, role) { success ->
+                                    fetchUserRoles(email)
+                                    _isLoading.value = false
+                                    onComplete(true, null)
+                                }
                             } else {
+                                // Just signing in
+                                fetchUserRoles(email)
                                 _isLoading.value = false
                                 onComplete(true, null)
                             }
                         }
                     } else {
-                        // Just fetch existing roles
-                        fetchUserRoles(email) { roles ->
-                            if (roles.isEmpty()) {
-                                val errorMsg = "Signed in but no roles found for this account"
-                                Log.w(TAG, errorMsg)
-                                _isLoading.value = false
-                                onComplete(true, errorMsg)
-                            } else {
-                                _isLoading.value = false
-                                onComplete(true, null)
-                            }
-                        }
+                        _isLoading.value = false
+                        onComplete(false, "Authentication successful but user is null")
                     }
-                } ?: run {
-                    // Handle case where user has no email
-                    val errorMsg = "Google Sign-in successful but no email found"
-                    Log.w(TAG, errorMsg)
+                } else {
+                    Log.w(TAG, "signInWithCredential:failure", task.exception)
                     _isLoading.value = false
-                    onComplete(false, errorMsg)
+                    onComplete(false, "Authentication failed: ${task.exception?.message}")
                 }
-            } else {
-                val errorMsg = "Firebase auth successful but user is null"
-                Log.e(TAG, errorMsg)
-                _isLoading.value = false
-                onComplete(false, errorMsg)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error authenticating with Google token: ${e.message}", e)
-            _isLoading.value = false
-            onComplete(false, "Authentication failed: ${e.message}")
-        }
     }
     
     companion object {

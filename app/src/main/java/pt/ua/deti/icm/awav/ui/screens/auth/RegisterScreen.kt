@@ -26,6 +26,19 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.rememberAsyncImagePainter
+import android.net.Uri
 
 @Composable
 fun RegisterScreen(
@@ -35,6 +48,8 @@ fun RegisterScreen(
 ) {
     val email by viewModel.email.collectAsState()
     val password by viewModel.password.collectAsState()
+    val displayName by viewModel.displayName.collectAsState()
+    val profilePicUri by viewModel.profilePicUri.collectAsState()
     val selectedRole by viewModel.selectedRole.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val context = LocalContext.current
@@ -56,6 +71,13 @@ fun RegisterScreen(
             // Pass the selected role to the callback
             selectedRole?.let { onRegisterSuccess(it) }
         }
+    }
+    
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.updateProfilePicUri(it) }
     }
     
     // Create an activity result launcher for Google Sign-In
@@ -106,6 +128,54 @@ fun RegisterScreen(
             text = "Create Account",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 24.dp)
+        )
+        
+        // Profile Picture Selection
+        Box(
+            modifier = Modifier
+                .padding(bottom = 16.dp)
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                .clickable { imagePickerLauncher.launch("image/*") },
+            contentAlignment = Alignment.Center
+        ) {
+            if (profilePicUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(profilePicUri),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.AddAPhoto,
+                    contentDescription = "Add Photo",
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Text(
+            text = "Tap to add profile picture",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Display Name Field
+        OutlinedTextField(
+            value = displayName,
+            onValueChange = { viewModel.updateDisplayName(it) },
+            label = { Text("Display Name") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Next
+            )
         )
         
         OutlinedTextField(
@@ -167,7 +237,8 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            enabled = !loading && email.isNotEmpty() && password.length >= 6 && selectedRole != null
+            enabled = !loading && email.isNotEmpty() && password.length >= 6 && 
+                    displayName.isNotEmpty() && selectedRole != null
         ) {
             if (loading) {
                 CircularProgressIndicator(

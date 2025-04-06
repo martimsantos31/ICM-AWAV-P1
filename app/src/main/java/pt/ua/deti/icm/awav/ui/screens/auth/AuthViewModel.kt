@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import pt.ua.deti.icm.awav.data.AuthRepository
 import pt.ua.deti.icm.awav.data.model.UserRole
+import android.net.Uri
 
 class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     
@@ -28,6 +29,12 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _password = MutableStateFlow("")
     val password: StateFlow<String> = _password.asStateFlow()
     
+    private val _displayName = MutableStateFlow("")
+    val displayName: StateFlow<String> = _displayName.asStateFlow()
+    
+    private val _profilePicUri = MutableStateFlow<Uri?>(null)
+    val profilePicUri: StateFlow<Uri?> = _profilePicUri.asStateFlow()
+    
     private val _selectedRole = MutableStateFlow<UserRole?>(null)
     val selectedRole: StateFlow<UserRole?> = _selectedRole.asStateFlow()
     
@@ -41,6 +48,14 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     
     fun updatePassword(password: String) {
         _password.value = password
+    }
+    
+    fun updateDisplayName(name: String) {
+        _displayName.value = name
+    }
+    
+    fun updateProfilePicUri(uri: Uri?) {
+        _profilePicUri.value = uri
     }
     
     fun updateSelectedRole(role: UserRole?) {
@@ -89,7 +104,13 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
         
         _loading.value = true
-        authRepository.signUp(_email.value, _password.value, selectedRole) { success ->
+        authRepository.signUp(
+            email = _email.value, 
+            password = _password.value, 
+            displayName = _displayName.value,
+            profilePicUri = _profilePicUri.value,
+            role = selectedRole
+        ) { success ->
             _loading.value = false
             onComplete(success)
         }
