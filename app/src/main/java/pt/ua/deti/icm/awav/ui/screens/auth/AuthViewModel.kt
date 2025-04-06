@@ -3,11 +3,13 @@ package pt.ua.deti.icm.awav.ui.screens.auth
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import pt.ua.deti.icm.awav.data.AuthRepository
 import pt.ua.deti.icm.awav.data.model.UserRole
 
@@ -16,6 +18,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     // Auth state
     val currentUser = authRepository.currentUser
     val userRoles = authRepository.userRoles
+    val repositoryLoading = authRepository.isLoading
     
     // UI state
     private val _email = MutableStateFlow("")
@@ -63,6 +66,32 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         authRepository.signUp(_email.value, _password.value, selectedRole) { success ->
             _loading.value = false
             onComplete(success)
+        }
+    }
+    
+    fun signInWithGoogle(onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            authRepository.signInWithGoogle(
+                role = _selectedRole.value
+            ) { success, errorMessage ->
+                onComplete(success, errorMessage)
+            }
+        }
+    }
+    
+    fun signUpWithGoogle(onComplete: (Boolean, String?) -> Unit) {
+        val selectedRole = _selectedRole.value
+        if (selectedRole == null) {
+            onComplete(false, "Please select a role first")
+            return
+        }
+        
+        viewModelScope.launch {
+            authRepository.signInWithGoogle(
+                role = selectedRole
+            ) { success, errorMessage ->
+                onComplete(success, errorMessage)
+            }
         }
     }
     

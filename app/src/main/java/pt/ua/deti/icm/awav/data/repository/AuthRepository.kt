@@ -11,6 +11,7 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import pt.ua.deti.icm.awav.data.GoogleAuthHelper
 import pt.ua.deti.icm.awav.data.model.UserRole
 
 class AuthRepository(private val context: Context) {
@@ -18,6 +19,7 @@ class AuthRepository(private val context: Context) {
     private val auth: FirebaseAuth = Firebase.auth
     private val db = Firebase.firestore
     private val usersCollection = db.collection("users")
+    private val googleAuthHelper = GoogleAuthHelper(context)
 
     // Current user state
     private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
@@ -26,6 +28,10 @@ class AuthRepository(private val context: Context) {
     // Available roles for the current user
     private val _userRoles = MutableStateFlow<List<UserRole>>(emptyList())
     val userRoles: StateFlow<List<UserRole>> = _userRoles.asStateFlow()
+    
+    // Loading state
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
     init {
         // Initialize current user
@@ -170,6 +176,94 @@ class AuthRepository(private val context: Context) {
                     onComplete(false)
                 }
             }
+    }
+    
+    /**
+     * Sign in with Google
+     */
+    suspend fun signInWithGoogle(
+        role: UserRole? = null, 
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        _isLoading.value = true
+        
+        try {
+            googleAuthHelper.signInWithGoogle(
+                onSuccess = { user ->
+                    _currentUser.value = user
+                    
+                    // If a role is provided, add it to the user document
+                    user.email?.let { email ->
+                        if (role != null) {
+                            // Add the selected role
+                            addRoleToUser(email, role) { success ->
+                                if (!success) {
+                                    val errorMsg = "Signed in with Google but failed to assign role"
+                                    Toast.makeText(
+                                        context,
+                                        errorMsg,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    _isLoading.value = false
+                                    onComplete(true, errorMsg)
+                                } else {
+                                    _isLoading.value = false
+                                    onComplete(true, null)
+                                }
+                            }
+                        } else {
+                            // Just fetch existing roles
+                            fetchUserRoles(email) { roles ->
+                                if (roles.isEmpty()) {
+                                    val errorMsg = "Signed in but no roles found for this account"
+                                    Toast.makeText(
+                                        context,
+                                        errorMsg,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    _isLoading.value = false
+                                    onComplete(true, errorMsg)
+                                } else {
+                                    _isLoading.value = false
+                                    onComplete(true, null)
+                                }
+                            }
+                        }
+                    } ?: run {
+                        // Handle case where user has no email
+                        val errorMsg = "Google Sign-in successful but no email found"
+                        Toast.makeText(
+                            context,
+                            errorMsg,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        _isLoading.value = false
+                        onComplete(false, errorMsg)
+                    }
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "Google sign-in failed", e)
+                    val errorMsg = "Google Sign-in failed: ${e.message}"
+                    Toast.makeText(
+                        context,
+                        errorMsg,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    _isLoading.value = false
+                    onComplete(false, errorMsg)
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception during Google sign-in", e)
+            val errorMsg = "Google Sign-in error: ${e.message}"
+            Toast.makeText(
+                context,
+                errorMsg,
+                Toast.LENGTH_SHORT
+            ).show()
+            _isLoading.value = false
+            onComplete(false, errorMsg)
+        }
     }
     
     fun signOut() {

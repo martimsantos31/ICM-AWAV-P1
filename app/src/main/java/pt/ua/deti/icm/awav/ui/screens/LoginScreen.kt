@@ -28,6 +28,9 @@ import pt.ua.deti.icm.awav.ui.navigation.Screen
 import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
 
 @Composable
 fun LoginScreen(
@@ -158,6 +161,67 @@ fun LoginScreen(
                 }
             }
             
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Google Sign-in button
+            val googleLoading by viewModel.repositoryLoading.collectAsState()
+            OutlinedButton(
+                onClick = {
+                    Log.d("LoginScreen", "Starting Google sign-in")
+                    viewModel.signInWithGoogle { success, errorMessage ->
+                        Log.d("LoginScreen", "Google sign-in result: $success, error: $errorMessage")
+                        if (success) {
+                            val currentRole = selectedRole
+                            if (currentRole != null) {
+                                // If they've already selected a role, use it
+                                onLoginSuccess(currentRole)
+                            } else if (userRoles.size == 1) {
+                                // If only one role available, use it automatically
+                                onLoginSuccess(userRoles.first())
+                            } else {
+                                // Otherwise, show the dialog
+                                showRoleDialog = true
+                            }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                errorMessage ?: "Google sign-in failed. Please try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(AWAVStyles.buttonHeight),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, Color(0xFF4285F4)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFF4285F4)
+                ),
+                enabled = !googleLoading
+            ) {
+                if (googleLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFF4285F4)
+                    )
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_google),
+                            contentDescription = "Google Logo",
+                            tint = Color.Unspecified
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sign in with Google")
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             
             TextButton(onClick = { 

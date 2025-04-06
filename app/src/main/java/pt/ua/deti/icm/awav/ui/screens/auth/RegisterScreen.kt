@@ -1,21 +1,25 @@
 package pt.ua.deti.icm.awav.ui.screens.auth
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.auth.ktx.auth
-import com.google.firebase.ktx.Firebase
+import androidx.compose.ui.res.painterResource
+import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.model.UserRole
+import android.util.Log
 
 @Composable
 fun RegisterScreen(
@@ -107,6 +111,13 @@ fun RegisterScreen(
         Button(
             onClick = {
                 viewModel.signUp { success ->
+                    if (!success) {
+                        Toast.makeText(
+                            context,
+                            "Registration failed. Please try again.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                     // The LaunchedEffect will handle navigation on success
                 }
             },
@@ -122,6 +133,64 @@ fun RegisterScreen(
                 )
             } else {
                 Text("Register")
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Google Sign-up button
+        val googleLoading by viewModel.repositoryLoading.collectAsState()
+        OutlinedButton(
+            onClick = {
+                if (selectedRole != null) {
+                    Log.d("RegisterScreen", "Starting Google sign-up process")
+                    viewModel.signUpWithGoogle { success, errorMessage ->
+                        Log.d("RegisterScreen", "Google sign-up result: $success, error: $errorMessage")
+                        if (!success) {
+                            Toast.makeText(
+                                context,
+                                errorMessage ?: "Google sign-up failed. Please try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        // The LaunchedEffect with currentUser will handle navigation on success
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Please select a role first",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, Color(0xFF4285F4)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFF4285F4)
+            ),
+            enabled = !googleLoading && selectedRole != null
+        ) {
+            if (googleLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color(0xFF4285F4)
+                )
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_google),
+                        contentDescription = "Google Logo",
+                        tint = Color.Unspecified
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Sign up with Google")
+                }
             }
         }
         
