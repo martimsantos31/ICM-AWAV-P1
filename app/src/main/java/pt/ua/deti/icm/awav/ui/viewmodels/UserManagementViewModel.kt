@@ -57,16 +57,28 @@ class UserManagementViewModel : ViewModel() {
             _error.value = null
             
             try {
+                // First, get the Auth Repository instance to check current user
+                val authRepository = AuthRepository.getInstance()
+                val currentUser = authRepository.currentUser.value
+                Log.d(TAG, "Current authenticated user: ${currentUser?.email}, UID: ${currentUser?.uid}")
+                
                 val usersSnapshot = withContext(Dispatchers.IO) {
                     usersCollection.get().await()
                 }
+                
+                Log.d(TAG, "Loaded ${usersSnapshot.documents.size} user documents from Firestore")
                 
                 val usersList = usersSnapshot.documents.mapNotNull { doc ->
                     try {
                         val email = doc.id
                         val displayName = doc.getString("displayName") ?: "Unknown"
                         val photoUrl = doc.getString("photoUrl")
+                        
+                        // Retrieve UID and roles directly from the document
+                        val uid = doc.getString("uid") ?: "" // Allow empty UID
                         val roles = doc.get("roles") as? List<String> ?: emptyList()
+                        
+                        // Convert roles string to enum
                         val userRoles = roles.mapNotNull { roleName ->
                             try {
                                 UserRole.valueOf(roleName)
@@ -75,25 +87,34 @@ class UserManagementViewModel : ViewModel() {
                             }
                         }
                         
-                        val uid = doc.getString("uid") ?: ""
+                        // Log the raw document data for debugging
+                        Log.d(TAG, "User document for $email: ${doc.data}")
                         
-                        UserProfile(
-                            id = uid,
-                            email = email,
+                        // Check if UID is missing and log it (but don't skip the user)
+                        if (uid.isBlank()) {
+                            Log.w(TAG, "User $displayName (email: $email) has no UID in Firestore. Using email as primary identifier.")
+                        }
+                        
+                        val userProfile = UserProfile(
+                            id = uid, // May be empty
+                            email = email, // Use email as the primary identifier
                             name = displayName,
                             photoUrl = photoUrl,
                             role = userRoles.firstOrNull() ?: UserRole.PARTICIPANT
                         )
+                        
+                        Log.d(TAG, "Created user profile: name=${userProfile.name}, id='${userProfile.id}', email=${userProfile.email}, role=${userProfile.role}")
+                        userProfile
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error parsing user document: ${e.message}")
+                        Log.e(TAG, "Error parsing user document: ${e.message}", e)
                         null
                     }
                 }
                 
                 _users.value = usersList
-                Log.d(TAG, "Loaded ${usersList.size} users")
+                Log.d(TAG, "Loaded ${usersList.size} valid users")
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading users: ${e.message}")
+                Log.e(TAG, "Error loading users: ${e.message}", e)
                 _error.value = "Failed to load users: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -105,18 +126,26 @@ class UserManagementViewModel : ViewModel() {
     fun loadStandsForEvent(eventId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             
             try {
+                Log.d(TAG, "Loading stands for event ID: $eventId")
                 val stands = withContext(Dispatchers.IO) {
                     standsRepository.getStandsForEvent(eventId)
                 }
                 
+                Log.d(TAG, "Found ${stands.size} stands for event ID: $eventId")
                 _stands.value = stands
                 
                 // After loading stands, load all workers for these stands
-                loadWorkersForStands(stands.map { it.id })
+                if (stands.isNotEmpty()) {
+                    loadWorkersForStands(stands.map { it.id })
+                } else {
+                    _workers.value = emptyList()
+                    Log.d(TAG, "No stands found for event ID: $eventId, so no workers to load")
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading stands: ${e.message}")
+                Log.e(TAG, "Error loading stands: ${e.message}", e)
                 _error.value = "Failed to load stands: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -128,6 +157,7 @@ class UserManagementViewModel : ViewModel() {
     private fun loadWorkersForStands(standIds: List<Int>) {
         viewModelScope.launch {
             try {
+                Log.d(TAG, "Loading workers for ${standIds.size} stands")
                 val allWorkers = mutableListOf<WorkerWithUser>()
                 
                 for (standId in standIds) {
@@ -135,9 +165,22 @@ class UserManagementViewModel : ViewModel() {
                         standsRepository.getWorkersForStand(standId).first()
                     }
                     
+                    Log.d(TAG, "Found ${workers.size} workers for stand ID: $standId")
+                    
                     // Find corresponding user profiles
                     for (worker in workers) {
-                        val userProfile = _users.value.find { it.id == worker.userId }
+                        // Check if userId is an email or UID
+                        val isEmail = worker.userId.contains("@")
+                        
+                        // Find user by either ID or email
+                        val userProfile = if (isEmail) {
+                            // If userId is an email, find by email
+                            _users.value.find { it.email == worker.userId }
+                        } else {
+                            // If userId is a UID, find by id
+                            _users.value.find { it.id == worker.userId }
+                        }
+                        
                         if (userProfile != null) {
                             allWorkers.add(
                                 WorkerWithUser(
@@ -146,6 +189,9 @@ class UserManagementViewModel : ViewModel() {
                                     standName = _stands.value.find { it.id == worker.standId }?.name ?: "Unknown Stand"
                                 )
                             )
+                            Log.d(TAG, "Found user profile for worker ${worker.name} (ID: ${worker.userId})")
+                        } else {
+                            Log.w(TAG, "Could not find user profile for worker ${worker.name} (ID: ${worker.userId})")
                         }
                     }
                 }
@@ -153,7 +199,7 @@ class UserManagementViewModel : ViewModel() {
                 _workers.value = allWorkers
                 Log.d(TAG, "Loaded ${allWorkers.size} workers for ${standIds.size} stands")
             } catch (e: Exception) {
-                Log.e(TAG, "Error loading workers: ${e.message}")
+                Log.e(TAG, "Error loading workers: ${e.message}", e)
                 _error.value = "Failed to load workers: ${e.message}"
             }
         }
@@ -163,33 +209,65 @@ class UserManagementViewModel : ViewModel() {
     fun assignWorkerToStand(userId: String, userName: String, standId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             
             try {
+                // Find the user profile to get the email
+                val userProfile = _users.value.find { it.id == userId || it.email == userId }
+                
+                // If userId is empty but we found a user profile, use the email
+                val userIdentifier = if (userId.isBlank() && userProfile != null) {
+                    Log.d(TAG, "Using email as identifier: ${userProfile.email}")
+                    userProfile.email
+                } else {
+                    userId
+                }
+                
+                // Validate user identifier
+                if (userIdentifier.isBlank()) {
+                    Log.e(TAG, "Cannot assign worker with empty user identifier: $userName")
+                    _error.value = "Cannot assign worker: User identifier is missing"
+                    return@launch
+                }
+                
+                Log.d(TAG, "Assigning user $userName (ID: $userIdentifier) to stand ID: $standId")
+                
                 // First check if this user is already assigned to this stand
                 val existingWorkers = withContext(Dispatchers.IO) {
                     standsRepository.getWorkersForStand(standId).first()
                 }
                 
                 // If user is already assigned, don't create a duplicate
-                if (existingWorkers.any { it.userId == userId }) {
+                if (existingWorkers.any { it.userId == userIdentifier }) {
+                    Log.w(TAG, "User $userName is already assigned to stand ID: $standId")
                     _error.value = "User is already assigned to this stand"
+                    return@launch
+                }
+                
+                // Use the actual user profile if available
+                val actualUserProfile = userProfile ?: _users.value.find { it.email == userIdentifier }
+                if (actualUserProfile == null) {
+                    Log.e(TAG, "Cannot find user with identifier: $userIdentifier in the loaded users list")
+                    _error.value = "Cannot find user to assign as worker"
                     return@launch
                 }
                 
                 // Create a new worker
                 val worker = Worker(
                     standId = standId,
-                    name = userName,
-                    userId = userId
+                    name = actualUserProfile.name,
+                    userId = userIdentifier // Use email as the identifier
                 )
                 
                 // Add worker to database
-                withContext(Dispatchers.IO) {
+                val workerId = withContext(Dispatchers.IO) {
                     standsRepository.insertWorker(worker)
                 }
                 
+                Log.d(TAG, "Created worker with ID: $workerId for user: ${actualUserProfile.name}")
+                
                 // Update the user's role in Firebase to include STAND_WORKER
-                updateUserRole(userId)
+                updateUserRole(userIdentifier)
                 
                 // Refresh workers list
                 val updatedWorkers = withContext(Dispatchers.IO) {
@@ -199,22 +277,25 @@ class UserManagementViewModel : ViewModel() {
                 // Find the stand name
                 val standName = _stands.value.find { it.id == standId }?.name ?: "Unknown Stand"
                 
-                // Find corresponding user profile
-                val userProfile = _users.value.find { it.id == userId }
-                if (userProfile != null) {
-                    // Add the new worker to the list
+                // Find the newly created worker with its assigned ID
+                val newWorker = updatedWorkers.find { it.userId == userIdentifier }
+                if (newWorker != null) {
+                    // Add the new worker to the list with the correct user profile
                     val newWorkerWithUser = WorkerWithUser(
-                        worker = updatedWorkers.last(), // Assume the last one is the one we just added
-                        userProfile = userProfile,
+                        worker = newWorker,
+                        userProfile = actualUserProfile,
                         standName = standName
                     )
                     
                     _workers.value = _workers.value + newWorkerWithUser
+                    Log.d(TAG, "Added worker ${actualUserProfile.name} to UI list for stand: $standName")
+                } else {
+                    Log.e(TAG, "Could not find newly created worker in database after insertion")
                 }
                 
-                Log.d(TAG, "Assigned worker $userName to stand ID $standId")
+                Log.d(TAG, "Successfully assigned worker ${actualUserProfile.name} to stand ID $standId")
             } catch (e: Exception) {
-                Log.e(TAG, "Error assigning worker: ${e.message}")
+                Log.e(TAG, "Error assigning worker: ${e.message}", e)
                 _error.value = "Failed to assign worker: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -248,36 +329,67 @@ class UserManagementViewModel : ViewModel() {
     // Update user role to STAND_WORKER in Firebase
     private suspend fun updateUserRole(userId: String) {
         try {
-            // Find user by UID
-            val userQuery = withContext(Dispatchers.IO) {
-                usersCollection.whereEqualTo("uid", userId).get().await()
-            }
+            // Check if the userId is an email address
+            val isEmail = userId.contains("@")
             
-            if (!userQuery.isEmpty) {
-                val userDoc = userQuery.documents.first()
-                val email = userDoc.id
+            if (isEmail) {
+                // If userId is an email, use it directly to update the document
+                val userDoc = withContext(Dispatchers.IO) {
+                    usersCollection.document(userId).get().await()
+                }
                 
-                // Get current roles
-                val currentRoles = userDoc.get("roles") as? List<String> ?: emptyList()
-                
-                // Add STAND_WORKER role if not present
-                if (!currentRoles.contains(UserRole.STAND_WORKER.name)) {
-                    val updatedRoles = currentRoles + UserRole.STAND_WORKER.name
+                if (userDoc.exists()) {
+                    // Get current roles
+                    val currentRoles = userDoc.get("roles") as? List<String> ?: emptyList()
                     
-                    // Update roles in Firebase
-                    withContext(Dispatchers.IO) {
-                        usersCollection.document(email)
-                            .update("roles", updatedRoles)
-                            .await()
+                    // Add STAND_WORKER role if not present
+                    if (!currentRoles.contains(UserRole.STAND_WORKER.name)) {
+                        val updatedRoles = currentRoles + UserRole.STAND_WORKER.name
+                        
+                        // Update roles in Firebase
+                        withContext(Dispatchers.IO) {
+                            usersCollection.document(userId)
+                                .update("roles", updatedRoles)
+                                .await()
+                        }
+                        
+                        Log.d(TAG, "Updated user $userId roles to include STAND_WORKER")
                     }
-                    
-                    Log.d(TAG, "Updated user $email roles to include STAND_WORKER")
+                } else {
+                    Log.w(TAG, "Could not find user document with email $userId")
                 }
             } else {
-                Log.w(TAG, "Could not find user with UID $userId")
+                // Find user by UID (original implementation)
+                val userQuery = withContext(Dispatchers.IO) {
+                    usersCollection.whereEqualTo("uid", userId).get().await()
+                }
+                
+                if (!userQuery.isEmpty) {
+                    val userDoc = userQuery.documents.first()
+                    val email = userDoc.id
+                    
+                    // Get current roles
+                    val currentRoles = userDoc.get("roles") as? List<String> ?: emptyList()
+                    
+                    // Add STAND_WORKER role if not present
+                    if (!currentRoles.contains(UserRole.STAND_WORKER.name)) {
+                        val updatedRoles = currentRoles + UserRole.STAND_WORKER.name
+                        
+                        // Update roles in Firebase
+                        withContext(Dispatchers.IO) {
+                            usersCollection.document(email)
+                                .update("roles", updatedRoles)
+                                .await()
+                        }
+                        
+                        Log.d(TAG, "Updated user $email roles to include STAND_WORKER")
+                    }
+                } else {
+                    Log.w(TAG, "Could not find user with UID $userId")
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating user role: ${e.message}")
+            Log.e(TAG, "Error updating user role: ${e.message}", e)
             throw e
         }
     }

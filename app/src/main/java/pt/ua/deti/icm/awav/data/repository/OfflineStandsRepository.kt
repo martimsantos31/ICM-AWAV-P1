@@ -43,10 +43,11 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
         }
     }
     
-    override suspend fun insertWorker(worker: Worker) {
+    override suspend fun insertWorker(worker: Worker): Long {
         try {
-            standDao.insertWorker(worker)
-            Log.d("StandsRepository", "Worker inserted successfully")
+            val id = standDao.insertWorker(worker)
+            Log.d("StandsRepository", "Worker inserted successfully with ID: $id")
+            return id
         } catch (e: Exception) {
             Log.e("StandsRepository", "Error inserting worker: ${e.message}", e)
             throw e

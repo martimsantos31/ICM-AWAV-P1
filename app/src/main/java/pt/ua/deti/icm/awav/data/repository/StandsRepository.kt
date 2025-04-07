@@ -8,7 +8,7 @@ import pt.ua.deti.icm.awav.data.room.entity.Worker
 interface StandsRepository {
     suspend fun insertStand(stand: Stand): Long
     suspend fun insertMenuItem(menuItem: MenuItem)
-    suspend fun insertWorker(worker: Worker)
+    suspend fun insertWorker(worker: Worker): Long
     suspend fun updateStand(stand: Stand)
     suspend fun deleteStand(stand: Stand)
     suspend fun deleteWorker(worker: Worker)

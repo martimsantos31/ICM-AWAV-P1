@@ -21,5 +21,5 @@ data class Worker(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val standId: Int,
     val name: String,
-    val userId: String  // Firebase UID
+    val userId: String  // User identifier (email address)
 ) 

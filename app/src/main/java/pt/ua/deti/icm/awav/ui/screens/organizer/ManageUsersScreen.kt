@@ -30,6 +30,7 @@ import pt.ua.deti.icm.awav.data.room.entity.Stand
 import pt.ua.deti.icm.awav.data.room.entity.Worker
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import pt.ua.deti.icm.awav.ui.viewmodels.UserManagementViewModel
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,10 +54,18 @@ fun ManageUsersScreen(
     var expandUsersSection by remember { mutableStateOf(true) }
     var expandWorkersSection by remember { mutableStateOf(true) }
     
+    // Debug info
+    val eventIdInt = eventId.toIntOrNull()
+    
     // Load data when screen is created
     LaunchedEffect(eventId) {
-        val eventIdInt = eventId.toIntOrNull() ?: return@LaunchedEffect
-        viewModel.loadStandsForEvent(eventIdInt)
+        val parsedEventId = eventId.toIntOrNull()
+        if (parsedEventId != null) {
+            Log.d("ManageUsersScreen", "Loading stands for event ID: $parsedEventId")
+            viewModel.loadStandsForEvent(parsedEventId)
+        } else {
+            Log.e("ManageUsersScreen", "Invalid event ID: $eventId")
+        }
     }
     
     Scaffold(
@@ -64,7 +73,7 @@ fun ManageUsersScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Manage Users",
+                        text = "Manage Users (Event #$eventId)",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -113,63 +122,81 @@ fun ManageUsersScreen(
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.loadUsers() }) {
+                    Button(onClick = { 
+                        viewModel.loadUsers()
+                        eventIdInt?.let { viewModel.loadStandsForEvent(it) }
+                    }) {
                         Text("Retry")
                     }
                 }
             } else {
-                LazyColumn(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
-                    // Section: Users
-                    item {
-                        SectionHeader(
-                            title = "Users",
-                            isExpanded = expandUsersSection,
-                            onToggle = { expandUsersSection = !expandUsersSection }
-                        )
-                    }
+                    // Debug info for stands
+                    Text(
+                        text = "Event ID: $eventId, Found ${stands.size} stands, ${workers.size} workers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     
-                    if (expandUsersSection) {
-                        items(users.filter { it.role != UserRole.ORGANIZER }) { user ->
-                            UserItem(
-                                user = user,
-                                onClick = { selectedUser = user }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // Section: Users
+                        item {
+                            SectionHeader(
+                                title = "Users",
+                                isExpanded = expandUsersSection,
+                                onToggle = { expandUsersSection = !expandUsersSection }
                             )
                         }
                         
-                        if (users.isEmpty() || users.all { it.role == UserRole.ORGANIZER }) {
-                            item {
-                                EmptyState(message = "No users found")
+                        if (expandUsersSection) {
+                            items(users.filter { it.role != UserRole.ORGANIZER }) { user ->
+                                UserItem(
+                                    user = user,
+                                    onClick = { 
+                                        Log.d("ManageUsersScreen", "User selected: ${user.name}, Email: '${user.email}', ID: '${user.id}', role: ${user.role}, stands available: ${stands.size}")
+                                        selectedUser = user 
+                                    }
+                                )
+                            }
+                            
+                            if (users.isEmpty() || users.all { it.role == UserRole.ORGANIZER }) {
+                                item {
+                                    EmptyState(message = "No users found")
+                                }
                             }
                         }
-                    }
-                    
-                    // Section: Current Workers
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        SectionHeader(
-                            title = "Assigned Workers",
-                            isExpanded = expandWorkersSection,
-                            onToggle = { expandWorkersSection = !expandWorkersSection }
-                        )
-                    }
-                    
-                    if (expandWorkersSection) {
-                        items(workers) { workerWithUser ->
-                            WorkerItem(
-                                workerWithUser = workerWithUser,
-                                onDelete = {
-                                    viewModel.removeWorker(workerWithUser.worker)
-                                }
+                        
+                        // Section: Current Workers
+                        item {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            SectionHeader(
+                                title = "Assigned Workers",
+                                isExpanded = expandWorkersSection,
+                                onToggle = { expandWorkersSection = !expandWorkersSection }
                             )
                         }
                         
-                        if (workers.isEmpty()) {
-                            item {
-                                EmptyState(message = "No workers assigned")
+                        if (expandWorkersSection) {
+                            items(workers) { workerWithUser ->
+                                WorkerItem(
+                                    workerWithUser = workerWithUser,
+                                    onDelete = {
+                                        viewModel.removeWorker(workerWithUser.worker)
+                                    }
+                                )
+                            }
+                            
+                            if (workers.isEmpty()) {
+                                item {
+                                    EmptyState(message = "No workers assigned")
+                                }
                             }
                         }
                     }
@@ -185,6 +212,8 @@ fun ManageUsersScreen(
             stands = stands,
             onDismiss = { selectedUser = null },
             onAssign = { stand ->
+                Log.d("ManageUsersScreen", "Assigning ${selectedUser!!.name} to stand ${stand.name}")
+                Log.d("ID", selectedUser!!.id)
                 viewModel.assignWorkerToStand(
                     userId = selectedUser!!.id,
                     userName = selectedUser!!.name,
@@ -236,13 +265,19 @@ fun UserItem(
     user: UserProfile,
     onClick: () -> Unit
 ) {
+    // Check if user has a valid email
+    val hasValidEmail = user.email.isNotBlank()
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (hasValidEmail) 
+                MaterialTheme.colorScheme.surfaceVariant 
+            else 
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
         )
     ) {
         Row(
@@ -293,18 +328,38 @@ fun UserItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
-                Text(
-                    text = user.role.name.lowercase().replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Purple
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = user.role.name.lowercase().replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Purple
+                    )
+                    
+                    if (!hasValidEmail) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Missing Email",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "No Email",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
             
             // Icon
             Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Assign to Stand",
-                tint = Purple
+                imageVector = if (hasValidEmail) Icons.Default.Add else Icons.Default.Block,
+                contentDescription = if (hasValidEmail) "Assign to Stand" else "Cannot Assign",
+                tint = if (hasValidEmail) Purple else MaterialTheme.colorScheme.error
             )
         }
     }
@@ -415,52 +470,89 @@ fun SelectStandDialog(
     onDismiss: () -> Unit,
     onAssign: (Stand) -> Unit
 ) {
+    // Use email as the primary identifier
+    val userIdentifier = user.email
+    val hasValidIdentifier = userIdentifier.isNotBlank()
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Assign ${user.name} to Stand") },
         text = {
-            if (stands.isEmpty()) {
-                Text("No stands available for this event.")
-            } else {
-                LazyColumn {
-                    items(stands) { stand ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { onAssign(stand) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            Column {
+                // Show warning for missing identifier
+                if (!hasValidIdentifier) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(8.dp)
                             )
-                        ) {
-                            Row(
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Warning",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "This user has no email address and cannot be assigned to a stand. Please ensure the user's email is properly set up.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                
+                // Show available stands or empty message
+                if (stands.isEmpty()) {
+                    Text("No stands available for this event.")
+                } else if (!hasValidIdentifier) {
+                    Text("Cannot assign user without an email address.")
+                } else {
+                    LazyColumn {
+                        items(stands) { stand ->
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Store,
-                                    contentDescription = null,
-                                    tint = Purple,
-                                    modifier = Modifier.size(24.dp)
+                                    .padding(vertical = 4.dp)
+                                    .clickable { onAssign(stand) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
-                                
-                                Spacer(modifier = Modifier.width(12.dp))
-                                
-                                Column {
-                                    Text(
-                                        text = stand.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Store,
+                                        contentDescription = null,
+                                        tint = Purple,
+                                        modifier = Modifier.size(24.dp)
                                     )
                                     
-                                    if (stand.description.isNotBlank()) {
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    
+                                    Column {
                                         Text(
-                                            text = stand.description,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            text = stand.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
                                         )
+                                        
+                                        if (stand.description.isNotBlank()) {
+                                            Text(
+                                                text = stand.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }

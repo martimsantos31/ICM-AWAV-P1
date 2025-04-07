@@ -7,8 +7,8 @@ enum class UserRole {
 }
 
 data class UserProfile(
-    val id: String = "",
-    val email: String = "",
+    val id: String = "",  // Keep for backward compatibility but may be empty
+    val email: String = "",  // Primary identifier for the user
     val name: String = "",
     val photoUrl: String? = null,
     val phoneNumber: String? = null,

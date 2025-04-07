@@ -20,7 +20,7 @@ interface StandDao {
     suspend fun insertMenuItem(menuItem: MenuItem)
     
     @Insert
-    suspend fun insertWorker(worker: Worker)
+    suspend fun insertWorker(worker: Worker): Long
 
     @Update
     suspend fun updateStand(stand: Stand)
