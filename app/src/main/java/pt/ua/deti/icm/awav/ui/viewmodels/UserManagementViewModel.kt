@@ -45,6 +45,9 @@ class UserManagementViewModel : ViewModel() {
     private val _workers = MutableStateFlow<List<WorkerWithUser>>(emptyList())
     val workers: StateFlow<List<WorkerWithUser>> = _workers.asStateFlow()
     
+    // Keep track of the current event ID
+    private var currentEventId: Int? = null
+    
     // Initialize data
     init {
         loadUsers()
@@ -57,6 +60,7 @@ class UserManagementViewModel : ViewModel() {
             _error.value = null
             
             try {
+                Log.d(TAG, "Starting to load all users")
                 val usersSnapshot = withContext(Dispatchers.IO) {
                     usersCollection.get().await()
                 }
@@ -92,6 +96,18 @@ class UserManagementViewModel : ViewModel() {
                 
                 _users.value = usersList
                 Log.d(TAG, "Loaded ${usersList.size} users")
+                
+                // If we already have an event ID, refresh the workers data with the new user list
+                if (currentEventId != null) {
+                    Log.d(TAG, "Already have event ID $currentEventId, refreshing worker data")
+                    withContext(Dispatchers.IO) {
+                        // Add a small delay to ensure Firebase updates are complete
+                        kotlinx.coroutines.delay(200)
+                    }
+                    refreshWorkersData(currentEventId!!)
+                } else {
+                    Log.d(TAG, "No current event ID, skipping worker refresh")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading users: ${e.message}")
                 _error.value = "Failed to load users: ${e.message}"
@@ -105,13 +121,57 @@ class UserManagementViewModel : ViewModel() {
     fun loadStandsForEvent(eventId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             
             try {
+                // Store the current event ID
+                currentEventId = eventId
+                Log.d(TAG, "Loading stands for event ID: $eventId")
+                
+                // First load the users
+                val usersSnapshot = withContext(Dispatchers.IO) {
+                    usersCollection.get().await()
+                }
+                
+                val usersList = usersSnapshot.documents.mapNotNull { doc ->
+                    try {
+                        val email = doc.id
+                        val displayName = doc.getString("displayName") ?: "Unknown"
+                        val photoUrl = doc.getString("photoUrl")
+                        val roles = doc.get("roles") as? List<String> ?: emptyList()
+                        val userRoles = roles.mapNotNull { roleName ->
+                            try {
+                                UserRole.valueOf(roleName)
+                            } catch (e: IllegalArgumentException) {
+                                null
+                            }
+                        }
+                        
+                        val uid = doc.getString("uid") ?: ""
+                        
+                        UserProfile(
+                            id = uid,
+                            email = email,
+                            name = displayName,
+                            photoUrl = photoUrl,
+                            role = userRoles.firstOrNull() ?: UserRole.PARTICIPANT
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing user document: ${e.message}")
+                        null
+                    }
+                }
+                
+                _users.value = usersList
+                Log.d(TAG, "Loaded ${usersList.size} users while initializing stands for event $eventId")
+                
+                // Then load the stands
                 val stands = withContext(Dispatchers.IO) {
                     standsRepository.getStandsForEvent(eventId)
                 }
                 
                 _stands.value = stands
+                Log.d(TAG, "Loaded ${stands.size} stands for event $eventId")
                 
                 // After loading stands, load all workers for these stands
                 loadWorkersForStands(stands.map { it.id })
@@ -124,19 +184,50 @@ class UserManagementViewModel : ViewModel() {
         }
     }
     
+    // Refresh workers data with the current stands
+    private suspend fun refreshWorkersData(eventId: Int) {
+        try {
+            Log.d(TAG, "Starting worker data refresh for event $eventId")
+            val stands = withContext(Dispatchers.IO) {
+                standsRepository.getStandsForEvent(eventId)
+            }
+            
+            Log.d(TAG, "Found ${stands.size} stands for event $eventId during refresh")
+            _stands.value = stands
+            
+            // Refresh workers for these stands
+            loadWorkersForStands(stands.map { it.id })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error refreshing workers data: ${e.message}")
+        }
+    }
+    
     // Load workers for all stands
     private fun loadWorkersForStands(standIds: List<Int>) {
         viewModelScope.launch {
             try {
                 val allWorkers = mutableListOf<WorkerWithUser>()
                 
+                // Keep track of user IDs that we've already added to prevent duplicates
+                val addedUserIds = mutableSetOf<String>()
+                
                 for (standId in standIds) {
                     val workers = withContext(Dispatchers.IO) {
                         standsRepository.getWorkersForStand(standId).first()
                     }
                     
+                    Log.d(TAG, "Found ${workers.size} workers for stand $standId")
+                    
                     // Find corresponding user profiles
                     for (worker in workers) {
+                        Log.d(TAG, "Processing worker ${worker.id}: userId=${worker.userId}, standId=${worker.standId}")
+                        
+                        // Skip if we've already added this user
+                        if (worker.userId in addedUserIds) {
+                            Log.w(TAG, "Skipping duplicate worker with userId=${worker.userId} - already added")
+                            continue
+                        }
+                        
                         val userProfile = _users.value.find { it.id == worker.userId }
                         if (userProfile != null) {
                             allWorkers.add(
@@ -146,6 +237,11 @@ class UserManagementViewModel : ViewModel() {
                                     standName = _stands.value.find { it.id == worker.standId }?.name ?: "Unknown Stand"
                                 )
                             )
+                            // Mark this user ID as added
+                            addedUserIds.add(worker.userId)
+                            Log.d(TAG, "Added worker ${worker.name} to list, assigned to ${_stands.value.find { it.id == worker.standId }?.name}")
+                        } else {
+                            Log.w(TAG, "Could not find user profile for worker ${worker.name} (userId: ${worker.userId})")
                         }
                     }
                 }
@@ -163,16 +259,34 @@ class UserManagementViewModel : ViewModel() {
     fun assignWorkerToStand(userId: String, userName: String, standId: Int) {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
             
             try {
-                // First check if this user is already assigned to this stand
-                val existingWorkers = withContext(Dispatchers.IO) {
-                    standsRepository.getWorkersForStand(standId).first()
+                Log.d(TAG, "Assigning worker $userName (userId: $userId) to stand $standId")
+                
+                // Check if this user is already assigned to ANY stand
+                var isAlreadyAssigned = false
+                
+                // Get all stands
+                val allStands = withContext(Dispatchers.IO) {
+                    standsRepository.getAllStands()
                 }
                 
-                // If user is already assigned, don't create a duplicate
-                if (existingWorkers.any { it.userId == userId }) {
-                    _error.value = "User is already assigned to this stand"
+                // Check each stand for this user
+                for (stand in allStands) {
+                    val standWorkers = withContext(Dispatchers.IO) {
+                        standsRepository.getWorkersForStand(stand.id).first()
+                    }
+                    
+                    if (standWorkers.any { it.userId == userId }) {
+                        isAlreadyAssigned = true
+                        _error.value = "User is already assigned to stand: ${stand.name}"
+                        Log.w(TAG, "User $userName is already assigned to stand ${stand.id} (${stand.name})")
+                        break
+                    }
+                }
+                
+                if (isAlreadyAssigned) {
                     return@launch
                 }
                 
@@ -183,38 +297,35 @@ class UserManagementViewModel : ViewModel() {
                     userId = userId
                 )
                 
-                // Add worker to database
-                withContext(Dispatchers.IO) {
-                    standsRepository.insertWorker(worker)
+                // Add worker to database and get the ID
+                val workerId = withContext(Dispatchers.IO) {
+                    val id = standsRepository.insertWorker(worker)
+                    Log.d(TAG, "Inserted worker into database with ID: $id")
+                    id
                 }
                 
                 // Update the user's role in Firebase to include STAND_WORKER
                 updateUserRole(userId)
                 
-                // Refresh workers list
-                val updatedWorkers = withContext(Dispatchers.IO) {
-                    standsRepository.getWorkersForStand(standId).first()
+                // Force a refresh of the worker list by re-loading all data
+                withContext(Dispatchers.IO) {
+                    // Small delay to ensure database operations have completed
+                    kotlinx.coroutines.delay(300)
                 }
                 
-                // Find the stand name
-                val standName = _stands.value.find { it.id == standId }?.name ?: "Unknown Stand"
+                // Reload users first to ensure they have the new role
+                loadUsers()
                 
-                // Find corresponding user profile
-                val userProfile = _users.value.find { it.id == userId }
-                if (userProfile != null) {
-                    // Add the new worker to the list
-                    val newWorkerWithUser = WorkerWithUser(
-                        worker = updatedWorkers.last(), // Assume the last one is the one we just added
-                        userProfile = userProfile,
-                        standName = standName
-                    )
-                    
-                    _workers.value = _workers.value + newWorkerWithUser
+                // Then explicitly reload stands and workers
+                currentEventId?.let { eventId ->
+                    Log.d(TAG, "Refreshing worker data for event $eventId after assigning new worker")
+                    refreshWorkersData(eventId)
                 }
                 
-                Log.d(TAG, "Assigned worker $userName to stand ID $standId")
+                // Show success message
+                Log.d(TAG, "Successfully assigned worker $userName to stand $standId")
             } catch (e: Exception) {
-                Log.e(TAG, "Error assigning worker: ${e.message}")
+                Log.e(TAG, "Error assigning worker: ${e.message}", e)
                 _error.value = "Failed to assign worker: ${e.message}"
             } finally {
                 _isLoading.value = false
@@ -272,6 +383,9 @@ class UserManagementViewModel : ViewModel() {
                     }
                     
                     Log.d(TAG, "Updated user $email roles to include STAND_WORKER")
+                    
+                    // Reload users to get updated roles
+                    loadUsers()
                 }
             } else {
                 Log.w(TAG, "Could not find user with UID $userId")
@@ -280,6 +394,11 @@ class UserManagementViewModel : ViewModel() {
             Log.e(TAG, "Error updating user role: ${e.message}")
             throw e
         }
+    }
+    
+    // Get worker by ID
+    fun getWorkerById(workerId: Int): Worker? {
+        return _workers.value.find { it.worker.id == workerId }?.worker
     }
     
     // Data class to hold worker info with user profile

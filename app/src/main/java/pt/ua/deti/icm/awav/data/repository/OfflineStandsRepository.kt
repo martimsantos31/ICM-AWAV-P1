@@ -43,10 +43,11 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
         }
     }
     
-    override suspend fun insertWorker(worker: Worker) {
+    override suspend fun insertWorker(worker: Worker): Long {
         try {
-            standDao.insertWorker(worker)
-            Log.d("StandsRepository", "Worker inserted successfully")
+            val id = standDao.insertWorker(worker)
+            Log.d("StandsRepository", "Worker inserted successfully with ID: $id")
+            return id
         } catch (e: Exception) {
             Log.e("StandsRepository", "Error inserting worker: ${e.message}", e)
             throw e
@@ -90,6 +91,17 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
             return stands
         } catch (e: Exception) {
             Log.e("StandsRepository", "Error getting stands for event $eventId: ${e.message}", e)
+            throw e
+        }
+    }
+    
+    override suspend fun getAllStands(): List<Stand> {
+        try {
+            val stands = standDao.getAllStands()
+            Log.d("StandsRepository", "Got ${stands.size} stands total")
+            return stands
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error getting all stands: ${e.message}", e)
             throw e
         }
     }

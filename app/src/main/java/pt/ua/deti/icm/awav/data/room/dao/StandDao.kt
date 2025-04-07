@@ -20,7 +20,7 @@ interface StandDao {
     suspend fun insertMenuItem(menuItem: MenuItem)
     
     @Insert
-    suspend fun insertWorker(worker: Worker)
+    suspend fun insertWorker(worker: Worker): Long
 
     @Update
     suspend fun updateStand(stand: Stand)
@@ -42,4 +42,7 @@ interface StandDao {
     
     @Query("SELECT * FROM Worker WHERE standId = :standId")
     fun getWorkersForStand(standId: Int): Flow<List<Worker>>
+    
+    @Query("SELECT * FROM Stand")
+    suspend fun getAllStands(): List<Stand>
 }

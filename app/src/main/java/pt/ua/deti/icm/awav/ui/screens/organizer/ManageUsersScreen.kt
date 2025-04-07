@@ -59,6 +59,8 @@ fun ManageUsersScreen(
         viewModel.loadStandsForEvent(eventIdInt)
     }
     
+    // Get the currently selected event
+    
     Scaffold(
         topBar = {
             TopAppBar(
