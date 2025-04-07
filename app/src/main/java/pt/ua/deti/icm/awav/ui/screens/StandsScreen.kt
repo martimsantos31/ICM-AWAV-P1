@@ -18,28 +18,62 @@ import pt.ua.deti.icm.awav.data.room.AppDatabase
 import pt.ua.deti.icm.awav.data.room.entity.Stand
 import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.ui.theme.Purple
+import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
+import pt.ua.deti.icm.awav.ui.viewmodels.FirebaseTicketViewModel
+import pt.ua.deti.icm.awav.data.model.FirebaseTicket
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StandsScreen(navController: NavController) {
-
     val context = LocalContext.current
     val db = AppDatabase.getDatabase(context)
+    val ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
+    val firebaseTicketViewModel: FirebaseTicketViewModel = viewModel(factory = FirebaseTicketViewModel.factory())
+    val scope = rememberCoroutineScope()
 
-    // Collect events data as a state with explicit type declaration
-    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList<Event>())
+    // Get the user's tickets from both sources
+    val userRoomTickets by ticketViewModel.userTickets.collectAsState(initial = emptyList())
+    val userFirebaseTickets by firebaseTicketViewModel.userTickets.collectAsState()
+    
+    // State for stands and loading
+    var stands by remember { mutableStateOf<List<Stand>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    // Get the currently selected event
-    val selectedEvent by remember { derivedStateOf { eventData.firstOrNull() } }
-
-    // State to hold the stands for the selected event
-    val stands = remember { mutableStateOf<List<Stand>>(emptyList()) }
-
-    // Load stands when the selectedEvent changes
-    LaunchedEffect(selectedEvent) {
-        if (selectedEvent != null) {
-            // Fetch stands for the selected event
-            stands.value = db.standDao().getStandsForEvent(selectedEvent!!.id)
+    // Find the eventId from the user's ticket
+    LaunchedEffect(userRoomTickets, userFirebaseTickets) {
+        isLoading = true
+        Log.d("StandsScreen", "Room tickets: ${userRoomTickets.size}, Firebase tickets: ${userFirebaseTickets.size}")
+        
+        try {
+            // Check Firebase tickets first
+            if (userFirebaseTickets.isNotEmpty()) {
+                val eventId = userFirebaseTickets.first().eventId
+                Log.d("StandsScreen", "Using Firebase ticket with eventId: $eventId")
+                stands = withContext(Dispatchers.IO) {
+                    db.standDao().getStandsForEvent(eventId)
+                }
+            }
+            // Then check Room tickets if no Firebase tickets
+            else if (userRoomTickets.isNotEmpty()) {
+                val ticket = userRoomTickets.first()
+                // Get the event ID from the ticket
+                withContext(Dispatchers.IO) {
+                    val event = db.eventDao().getEventForTicket(ticket.ticketId)
+                    if (event != null) {
+                        Log.d("StandsScreen", "Using Room ticket with eventId: ${event.id}")
+                        stands = db.standDao().getStandsForEvent(event.id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("StandsScreen", "Error loading stands: ${e.message}", e)
+        } finally {
+            isLoading = false
         }
     }
 
@@ -60,8 +94,18 @@ fun StandsScreen(navController: NavController) {
             )
         }
     ) { padding ->
-        if (selectedEvent == null) {
-            // No event selected
+        if (isLoading) {
+            // Show loading indicator
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (userRoomTickets.isEmpty() && userFirebaseTickets.isEmpty()) {
+            // No tickets
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -82,20 +126,20 @@ fun StandsScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "No event selected",
+                        text = "No ticket found",
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Please select an event from the Home page to view stands",
+                        text = "Please purchase a ticket to view stands",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
                 }
             }
-        } else if (stands.value.isEmpty()) {
+        } else if (stands.isEmpty()) {
             // Event has no stands
             Box(
                 modifier = Modifier
@@ -139,7 +183,7 @@ fun StandsScreen(navController: NavController) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(stands.value) { stand ->
+                items(stands) { stand ->
                     StandCard(
                         stand = stand,
                         onDetailsClick = {

@@ -46,6 +46,9 @@ interface EventDao {
     
     @Query("SELECT * FROM events WHERE id = :id")
     fun getEventById(id: Int): Flow<Event>
+    
+    @Query("SELECT e.* FROM events e INNER JOIN Ticket t ON e.id = t.eventId WHERE t.id = :ticketId LIMIT 1")
+    suspend fun getEventForTicket(ticketId: Int): Event?
 
     @Query("SELECT * FROM events WHERE isActive = 1")
     fun getActiveEvents(): Flow<List<Event>>

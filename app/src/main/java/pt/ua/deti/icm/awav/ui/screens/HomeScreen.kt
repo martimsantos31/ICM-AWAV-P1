@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,25 +69,6 @@ fun HomeScreen(
     // Get the database instance using the singleton pattern instead of creating a new instance
     val db = AppDatabase.getDatabase(context)
     
-    // Collect events data as a state with explicit type declaration
-    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList<Event>())
-    var selectedEvent by remember { mutableStateOf<Event?>(eventData.firstOrNull()) }
-    var expanded by remember { mutableStateOf(false) }
-    val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    val storageFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    
-    // Function to safely format stored dates
-    fun formatStoredDate(dateStr: String?): String {
-        return try {
-            if (dateStr == null) return "Unknown"
-            val date = storageFormatter.parse(dateStr)
-            date?.let { dateFormatter.format(it) } ?: "Unknown"
-        } catch (e: Exception) {
-            Log.e("HomeScreen", "Error parsing date: $dateStr", e)
-            "Unknown"
-        }
-    }
-    
     // Wallet charge states
     var showChargeDialog by remember { mutableStateOf(false) }
     var chargeAmount by remember { mutableStateOf("") }
@@ -124,109 +106,6 @@ fun HomeScreen(
                         .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Event Selector
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    text = "Selected Event",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Event Dropdown
-                                OutlinedButton(
-                                    onClick = { expanded = true },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Purple
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = selectedEvent?.name ?: "No events available",
-                                            style = MaterialTheme.typography.bodyLarge
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDropDown,
-                                            contentDescription = "Select Event"
-                                        )
-                                    }
-                                }
-
-                                if (selectedEvent != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.CalendarMonth,
-                                            contentDescription = "Date",
-                                            tint = Purple,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "${formatStoredDate(selectedEvent!!.startDate)} - ${formatStoredDate(selectedEvent!!.endDate)}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Text(
-                                        text = selectedEvent!!.description,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2
-                                    )
-                                }
-                            }
-                        }
-
-                        // Dropdown menu
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            eventData.forEach { event: Event ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(text = event.name)
-                                            Text(
-                                                text = "${formatStoredDate(event.startDate)} - ${formatStoredDate(event.endDate)}",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
-                                    },
-                                    onClick = {
-                                        selectedEvent = event
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    
                     // Wallet Section
                     Card(
                         modifier = Modifier
@@ -278,17 +157,29 @@ fun HomeScreen(
                         }
                     }
                     
-                    // Event Notifications
+                    // My Tickets Section
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                     ) {
-                        Text(
-                            text = "Event Notifications",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "My Tickets",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            TextButton(
+                                onClick = { navController?.navigate("my_tickets") }
+                            ) {
+                                Text("View All")
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -304,31 +195,31 @@ fun HomeScreen(
                             ),
                             shape = MaterialTheme.shapes.medium
                         ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Basic dialog title",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icon(
+                                    imageVector = Icons.Default.ConfirmationNumber,
+                                    contentDescription = "Ticket",
+                                    tint = Purple,
+                                    modifier = Modifier.size(40.dp)
                                 )
-                                Text(
-                                    text = "A dialog is a type of modal window that appears in front of app content to provide critical information, or prompt for a decision to be made.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 8.dp)
-                                )
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 16.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
+                                
+                                Spacer(modifier = Modifier.width(16.dp))
+                                
+                                Column {
                                     Text(
-                                        text = "Action 1",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary
+                                        text = "Active Ticket",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Tap to view your active event ticket",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     )
                                 }
                             }

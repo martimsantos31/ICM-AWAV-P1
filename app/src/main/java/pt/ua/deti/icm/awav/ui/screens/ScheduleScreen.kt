@@ -17,6 +17,14 @@ import pt.ua.deti.icm.awav.data.room.AppDatabase
 import pt.ua.deti.icm.awav.data.room.entity.ScheduleItem
 import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.ui.theme.Purple
+import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
+import pt.ua.deti.icm.awav.ui.viewmodels.FirebaseTicketViewModel
+import pt.ua.deti.icm.awav.data.model.FirebaseTicket
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,24 +33,51 @@ import java.util.*
 fun ScheduleScreen(navController: NavController) {
     val context = LocalContext.current
     val db = AppDatabase.getDatabase(context)
+    val ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
+    val firebaseTicketViewModel: FirebaseTicketViewModel = viewModel(factory = FirebaseTicketViewModel.factory())
+    val scope = rememberCoroutineScope()
 
-    // Collect events data as a state with explicit type declaration
-    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList<Event>())
-
-    // Get the currently selected event
-    val selectedEvent by remember { derivedStateOf { eventData.firstOrNull() } }
+    // Get the user's tickets from both sources
+    val userRoomTickets by ticketViewModel.userTickets.collectAsState(initial = emptyList())
+    val userFirebaseTickets by firebaseTicketViewModel.userTickets.collectAsState()
+    
     val dateFormatter = SimpleDateFormat("E, dd MMM", Locale.getDefault())
     val timeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
 
-    // Retrieve the schedule items for the selected event
-    val scheduleItems = remember(selectedEvent) {
-        mutableStateOf<List<ScheduleItem>>(emptyList())
-    }
+    // State for schedule items
+    var scheduleItems by remember { mutableStateOf<List<ScheduleItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(selectedEvent) {
-        if (selectedEvent != null) {
-            // Fetch schedule items for the selected event
-            scheduleItems.value = db.scheduleItemDao().getScheduleItemsForEvent(selectedEvent!!.id)
+    // Find the eventId from the user's ticket
+    LaunchedEffect(userRoomTickets, userFirebaseTickets) {
+        isLoading = true
+        Log.d("ScheduleScreen", "Room tickets: ${userRoomTickets.size}, Firebase tickets: ${userFirebaseTickets.size}")
+        
+        try {
+            // Check Firebase tickets first
+            if (userFirebaseTickets.isNotEmpty()) {
+                val eventId = userFirebaseTickets.first().eventId
+                Log.d("ScheduleScreen", "Using Firebase ticket with eventId: $eventId")
+                scheduleItems = withContext(Dispatchers.IO) {
+                    db.scheduleItemDao().getScheduleItemsForEvent(eventId)
+                }
+            }
+            // Then check Room tickets if no Firebase tickets
+            else if (userRoomTickets.isNotEmpty()) {
+                val ticket = userRoomTickets.first()
+                // Get the event ID from the ticket
+                withContext(Dispatchers.IO) {
+                    val event = db.eventDao().getEventForTicket(ticket.ticketId)
+                    if (event != null) {
+                        Log.d("ScheduleScreen", "Using Room ticket with eventId: ${event.id}")
+                        scheduleItems = db.scheduleItemDao().getScheduleItemsForEvent(event.id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ScheduleScreen", "Error loading schedule: ${e.message}", e)
+        } finally {
+            isLoading = false
         }
     }
 
@@ -63,8 +98,18 @@ fun ScheduleScreen(navController: NavController) {
             )
         }
     ) { padding ->
-        if (selectedEvent == null) {
-            // No event selected
+        if (isLoading) {
+            // Show loading indicator
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (userRoomTickets.isEmpty() && userFirebaseTickets.isEmpty()) {
+            // No tickets
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -85,20 +130,20 @@ fun ScheduleScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "No event selected",
+                        text = "No ticket found",
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Please select an event from the Home page to view schedule",
+                        text = "Please purchase a ticket to view the event schedule",
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
                 }
             }
-        } else if (scheduleItems.value.isEmpty()) {
+        } else if (scheduleItems.isEmpty()) {
             // Event has no schedule items
             Box(
                 modifier = Modifier
@@ -135,16 +180,22 @@ fun ScheduleScreen(navController: NavController) {
             }
         } else {
             // Group schedule items by date
-            val groupedSchedule = scheduleItems.value
+            val groupedSchedule = scheduleItems
                 .sortedBy { it.startTime }
                 .groupBy {
-                    val cal = Calendar.getInstance()
-                    cal.time = SimpleDateFormat("yyyy-MM-dd HH:mm").parse(it.startTime)!!
-                    cal.set(Calendar.HOUR_OF_DAY, 0)
-                    cal.set(Calendar.MINUTE, 0)
-                    cal.set(Calendar.SECOND, 0)
-                    cal.set(Calendar.MILLISECOND, 0)
-                    cal.time
+                    try {
+                        val cal = Calendar.getInstance()
+                        val dateStr = it.startTime.split(" ")[0] // Extract date part yyyy-MM-dd
+                        cal.time = SimpleDateFormat("yyyy-MM-dd").parse(dateStr)!!
+                        cal.set(Calendar.HOUR_OF_DAY, 0)
+                        cal.set(Calendar.MINUTE, 0)
+                        cal.set(Calendar.SECOND, 0)
+                        cal.set(Calendar.MILLISECOND, 0)
+                        cal.time
+                    } catch (e: Exception) {
+                        Log.e("ScheduleScreen", "Error parsing date: ${it.startTime}", e)
+                        Date() // Default to current date if parsing fails
+                    }
                 }
 
             // Display schedule list
