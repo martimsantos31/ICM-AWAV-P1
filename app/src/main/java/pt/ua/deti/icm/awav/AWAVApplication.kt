@@ -4,20 +4,19 @@ import android.app.Application
 import android.util.Log
 import androidx.credentials.CredentialManager
 import com.google.firebase.FirebaseApp
+import pt.ua.deti.icm.awav.data.AppContainer
+import pt.ua.deti.icm.awav.data.AppDataContainer
 
 class AWAVApplication : Application() {
-    companion object {
-        private const val TAG = "AWAVApplication"
-    }
+    lateinit var appContainer: AppContainer
+        private set
     
     override fun onCreate() {
         super.onCreate()
-        
-        // Initialize Firebase
+
         FirebaseApp.initializeApp(this)
         Log.d(TAG, "Firebase initialized successfully")
-        
-        // Initialize Credential Manager (for Google Sign-In)
+
         try {
             val credentialManager = CredentialManager.create(this)
             Log.d(TAG, "CredentialManager initialized successfully")
@@ -26,5 +25,16 @@ class AWAVApplication : Application() {
         }
         
         Log.d(TAG, "Application initialization completed")
+        appContainer = AppDataContainer(this)
+
+        instance = this
+    }
+    
+    companion object {
+        private const val TAG = "AWAVApplication"
+        private lateinit var instance: AWAVApplication
+
+        val appContainer: AppContainer
+            get() = instance.appContainer
     }
 }
