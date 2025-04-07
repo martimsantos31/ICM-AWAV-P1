@@ -42,4 +42,7 @@ interface StandDao {
     
     @Query("SELECT * FROM Worker WHERE standId = :standId")
     fun getWorkersForStand(standId: Int): Flow<List<Worker>>
+    
+    @Query("SELECT s.* FROM Stand s INNER JOIN Worker w ON s.id = w.standId WHERE w.userId = :userId")
+    suspend fun getStandsForWorker(userId: String): List<Stand>
 }

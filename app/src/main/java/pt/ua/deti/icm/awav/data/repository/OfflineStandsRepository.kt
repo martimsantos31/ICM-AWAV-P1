@@ -94,5 +94,16 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
             throw e
         }
     }
+    
+    override suspend fun getStandsForWorker(userId: String): List<Stand> {
+        try {
+            val stands = standDao.getStandsForWorker(userId)
+            Log.d("StandsRepository", "Got ${stands.size} stands for worker with userId $userId")
+            return stands
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error getting stands for worker $userId: ${e.message}", e)
+            throw e
+        }
+    }
 }
 

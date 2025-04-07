@@ -62,7 +62,12 @@ fun ManageUsersScreen(
         val parsedEventId = eventId.toIntOrNull()
         if (parsedEventId != null) {
             Log.d("ManageUsersScreen", "Loading stands for event ID: $parsedEventId")
-            viewModel.loadStandsForEvent(parsedEventId)
+            try {
+                viewModel.loadStandsForEvent(parsedEventId)
+                Log.d("ManageUsersScreen", "Successfully initiated loadStandsForEvent")
+            } catch (e: Exception) {
+                Log.e("ManageUsersScreen", "Error initiating loadStandsForEvent: ${e.message}", e)
+            }
         } else {
             Log.e("ManageUsersScreen", "Invalid event ID: $eventId")
         }
@@ -181,6 +186,13 @@ fun ManageUsersScreen(
                                 isExpanded = expandWorkersSection,
                                 onToggle = { expandWorkersSection = !expandWorkersSection }
                             )
+                            
+                            // Debug info for workers
+                            Log.d("ManageUsersScreen", "Workers list size: ${workers.size}")
+                            workers.forEachIndexed { index, worker ->
+                                Log.d("ManageUsersScreen", "Worker $index: ${worker.worker.name}, standId: ${worker.worker.standId}, userId: ${worker.worker.userId}")
+                                Log.d("ManageUsersScreen", "User profile: ${worker.userProfile.name}, email: ${worker.userProfile.email}")
+                            }
                         }
                         
                         if (expandWorkersSection) {
@@ -213,9 +225,13 @@ fun ManageUsersScreen(
             onDismiss = { selectedUser = null },
             onAssign = { stand ->
                 Log.d("ManageUsersScreen", "Assigning ${selectedUser!!.name} to stand ${stand.name}")
-                Log.d("ID", selectedUser!!.id)
+                
+                // Always use email as the identifier when assigning workers
+                val userIdentifier = selectedUser!!.email
+                Log.d("ManageUsersScreen", "Using identifier for assignment: '$userIdentifier'")
+                
                 viewModel.assignWorkerToStand(
-                    userId = selectedUser!!.id,
+                    userId = userIdentifier, // Use email instead of ID
                     userName = selectedUser!!.name,
                     standId = stand.id
                 )
@@ -392,16 +408,19 @@ fun WorkerItem(
                     .background(Purple.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {
+                val displayName = workerWithUser.userProfile.name.ifBlank { workerWithUser.worker.name }
+                val firstLetter = displayName.take(1).uppercase()
+                
                 if (workerWithUser.userProfile.photoUrl != null) {
                     AsyncImage(
                         model = workerWithUser.userProfile.photoUrl,
-                        contentDescription = workerWithUser.userProfile.name,
+                        contentDescription = displayName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Text(
-                        text = workerWithUser.userProfile.name.take(1).uppercase(),
+                        text = firstLetter,
                         style = MaterialTheme.typography.titleLarge,
                         color = Color.White
                     )
@@ -414,18 +433,22 @@ fun WorkerItem(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
+                // Display name - prefer user profile name, fallback to worker name
                 Text(
-                    text = workerWithUser.userProfile.name,
+                    text = workerWithUser.userProfile.name.ifBlank { workerWithUser.worker.name },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 
+                // Show the email or userId
+                val emailOrId = workerWithUser.userProfile.email.ifBlank { workerWithUser.worker.userId }
                 Text(
-                    text = workerWithUser.userProfile.email,
+                    text = emailOrId,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 
+                // Show stand assignment
                 Text(
                     text = "Assigned to: ${workerWithUser.standName}",
                     style = MaterialTheme.typography.bodySmall,

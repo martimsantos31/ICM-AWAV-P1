@@ -16,4 +16,5 @@ interface StandsRepository {
     fun getMenuItemsForStand(standId: Int): Flow<List<MenuItem>>
     fun getWorkersForStand(standId: Int): Flow<List<Worker>>
     suspend fun getStandsForEvent(eventId: Int): List<Stand>
+    suspend fun getStandsForWorker(userId: String): List<Stand>
 }
