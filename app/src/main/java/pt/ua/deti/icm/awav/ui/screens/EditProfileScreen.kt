@@ -37,11 +37,13 @@ fun EditProfileScreen(
     val context = LocalContext.current
     val currentUser by authViewModel.currentUser.collectAsState()
     val loading by authViewModel.loading.collectAsState()
-    val selectedRole by authViewModel.userRoles.collectAsState()
+    val userRoles by authViewModel.userRoles.collectAsState()
+    val activeRole by authViewModel.activeRole.collectAsState()
     
     // Initialize edit fields with current user data
     LaunchedEffect(Unit) {
         authViewModel.initializeEditFields()
+        authViewModel.refreshUserState() // This will fetch roles and initialize active role
     }
     
     // Local state for UI
@@ -184,16 +186,17 @@ fun EditProfileScreen(
             )
             
             // Role field (non-editable)
-            val roleText = if (selectedRole.isNotEmpty()) {
-                selectedRole.first().name.lowercase().replaceFirstChar { it.uppercase() }
-            } else {
-                "User"
-            }
+            val roleText = activeRole?.name?.lowercase()?.replaceFirstChar { it.uppercase() }
+                ?: if (userRoles.isNotEmpty()) {
+                    userRoles.first().name.lowercase().replaceFirstChar { it.uppercase() }
+                } else {
+                    "User"
+                }
             
             OutlinedTextField(
                 value = roleText,
                 onValueChange = { },
-                label = { Text("Role") },
+                label = { Text("Active Role") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),

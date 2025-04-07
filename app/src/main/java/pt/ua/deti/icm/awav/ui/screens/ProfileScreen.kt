@@ -1,5 +1,6 @@
 package pt.ua.deti.icm.awav.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -39,16 +40,15 @@ fun ProfileScreen(
     val context = LocalContext.current
     val currentUser by authViewModel.currentUser.collectAsState()
     val userRoles by authViewModel.userRoles.collectAsState()
-    val selectedRole = userRoles.firstOrNull()
+    val activeRole by authViewModel.activeRole.collectAsState()
     
     // Add a state to track when profile screen is recomposed
     val refreshTrigger = remember { mutableStateOf(0) }
 
-    // Force refresh when coming back to this screen
-    LaunchedEffect(Unit) {
-        refreshTrigger.value = refreshTrigger.value + 1
-        // Force reload auth state
-        authViewModel.checkAuthState()
+    // Refresh user state when ProfileScreen is mounted
+    LaunchedEffect(true) {
+        Log.d("ProfileScreen", "LaunchedEffect triggered, refreshing user state")
+        authViewModel.refreshUserState()
     }
     
     Column(
@@ -106,7 +106,7 @@ fun ProfileScreen(
             fontWeight = FontWeight.Bold
         )
         
-        // User Email & Role
+        // User Email & Role with optional switch button
         Text(
             text = currentUser?.email ?: "",
             modifier = Modifier.padding(top = 4.dp),
@@ -114,8 +114,11 @@ fun ProfileScreen(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
         )
         
+        // Display only the active role without switching option
         Text(
-            text = selectedRole?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Guest",
+            text = activeRole?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: 
+                   userRoles.firstOrNull()?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: 
+                   "Guest",
             modifier = Modifier.padding(top = 4.dp, bottom = 24.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)

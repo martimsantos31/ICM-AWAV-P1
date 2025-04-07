@@ -362,6 +362,12 @@ fun LoginScreen(
                             // Show success message
                             val currentRole = selectedRole // Local copy for safe use
                             if (currentRole != null) {
+                                // Set this as the active role for the session
+                                viewModel.setActiveRole(currentRole)
+                                
+                                // Force a refresh of the user state
+                                viewModel.refreshUserState()
+                                
                                 Toast.makeText(
                                     context,
                                     "Successfully logged in as ${currentRole.name.lowercase()}!",

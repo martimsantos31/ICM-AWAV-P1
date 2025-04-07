@@ -25,7 +25,10 @@ import java.io.IOException
 import com.google.firebase.storage.StorageMetadata
 import pt.ua.deti.icm.awav.utils.StorageUtils
 
-class AuthRepository(private val context: Context) {
+class AuthRepository(context: Context) {
+    
+    // Make context accessible to AuthViewModel for SharedPreferences
+    val appContext: Context = context.applicationContext
     
     private val auth: FirebaseAuth = Firebase.auth
     private val db = Firebase.firestore
@@ -43,6 +46,9 @@ class AuthRepository(private val context: Context) {
     // Loading state
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    
+    // List of callbacks to notify when roles are updated
+    private val roleUpdateListeners = mutableListOf<(List<UserRole>) -> Unit>()
     
     init {
         // Initialize current user
@@ -96,16 +102,35 @@ class AuthRepository(private val context: Context) {
                     }
                     _userRoles.value = userRoles
                     onComplete?.invoke(userRoles)
+                    
+                    // Notify role listeners that roles have been updated
+                    roleUpdateListeners.forEach { it(userRoles) }
                 } else {
                     _userRoles.value = emptyList()
                     onComplete?.invoke(emptyList())
+                    
+                    // Notify role listeners with empty roles
+                    roleUpdateListeners.forEach { it(emptyList()) }
                 }
             }
             .addOnFailureListener { e ->
                 Log.w(TAG, "Error fetching user roles", e)
                 _userRoles.value = emptyList()
                 onComplete?.invoke(emptyList())
+                
+                // Notify role listeners with empty roles
+                roleUpdateListeners.forEach { it(emptyList()) }
             }
+    }
+    
+    // Add a listener for role updates
+    fun addRoleUpdateListener(listener: (List<UserRole>) -> Unit) {
+        roleUpdateListeners.add(listener)
+    }
+    
+    // Remove a listener for role updates
+    fun removeRoleUpdateListener(listener: (List<UserRole>) -> Unit) {
+        roleUpdateListeners.remove(listener)
     }
     
     fun addRoleToUser(email: String, role: UserRole, onComplete: (Boolean) -> Unit) {
@@ -181,7 +206,7 @@ class AuthRepository(private val context: Context) {
                                 if (!profileUpdateSuccess) {
                                     Log.w(TAG, "Failed to update user profile")
                                     Toast.makeText(
-                                        context,
+                                        appContext,
                                         "Account created but failed to set profile details",
                                         Toast.LENGTH_SHORT
                                     ).show()
@@ -192,7 +217,7 @@ class AuthRepository(private val context: Context) {
                         .addOnFailureListener { e ->
                             Log.w(TAG, "Error creating user document", e)
                             Toast.makeText(
-                                context,
+                                appContext,
                                 "Account created but failed to set user data",
                                 Toast.LENGTH_SHORT
                             ).show()
@@ -201,7 +226,7 @@ class AuthRepository(private val context: Context) {
                 } else {
                     Log.w(TAG, "createUserWithEmail:failure", task.exception)
                     Toast.makeText(
-                        context,
+                        appContext,
                         "Registration failed: ${task.exception?.message}",
                         Toast.LENGTH_SHORT,
                     ).show()
@@ -259,7 +284,7 @@ class AuthRepository(private val context: Context) {
                     
                     // Use the utility to upload the image with built-in fallback
                     StorageUtils.uploadImage(
-                        context = context,
+                        context = appContext,
                         imageUri = profilePicUri,
                         path = imagePath,
                         onSuccess = { downloadUri ->
@@ -353,7 +378,7 @@ class AuthRepository(private val context: Context) {
                     fetchUserRoles(email) { roles ->
                         if (roles.isEmpty()) {
                             Toast.makeText(
-                                context,
+                                appContext,
                                 "Logged in but no roles found for this account",
                                 Toast.LENGTH_SHORT
                             ).show()
@@ -363,7 +388,7 @@ class AuthRepository(private val context: Context) {
                 } else {
                     Log.w(TAG, "signInWithEmail:failure", task.exception)
                     Toast.makeText(
-                        context,
+                        appContext,
                         "Authentication failed: ${task.exception?.message}",
                         Toast.LENGTH_SHORT,
                     ).show()
@@ -417,7 +442,7 @@ class AuthRepository(private val context: Context) {
                     Log.e(TAG, "Google sign-in failed", e)
                     val errorMsg = "Google Sign-in failed: ${e.message}"
                     Toast.makeText(
-                        context,
+                        appContext,
                         errorMsg,
                         Toast.LENGTH_SHORT
                     ).show()
@@ -428,7 +453,7 @@ class AuthRepository(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error during Google sign-in", e)
             val errorMsg = "Unexpected error: ${e.message}"
-            Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+            Toast.makeText(appContext, errorMsg, Toast.LENGTH_SHORT).show()
             _isLoading.value = false
             onComplete(false, errorMsg)
         }
@@ -471,7 +496,7 @@ class AuthRepository(private val context: Context) {
                     if (!success) {
                         val errorMsg = "Signed in with Google but failed to assign role"
                         Toast.makeText(
-                            context,
+                            appContext,
                             errorMsg,
                             Toast.LENGTH_SHORT
                         ).show()
@@ -488,7 +513,7 @@ class AuthRepository(private val context: Context) {
                     if (roles.isEmpty()) {
                         val errorMsg = "Signed in but no roles found for this account"
                         Toast.makeText(
-                            context,
+                            appContext,
                             errorMsg,
                             Toast.LENGTH_SHORT
                         ).show()
@@ -504,7 +529,7 @@ class AuthRepository(private val context: Context) {
             // Handle case where user has no email
             val errorMsg = "Google Sign-in successful but no email found"
             Toast.makeText(
-                context,
+                appContext,
                 errorMsg,
                 Toast.LENGTH_SHORT
             ).show()

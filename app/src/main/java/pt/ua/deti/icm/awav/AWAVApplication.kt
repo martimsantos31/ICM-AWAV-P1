@@ -11,6 +11,7 @@ import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.storage.FirebaseStorage
 import pt.ua.deti.icm.awav.utils.GoogleServicesHelper
+import pt.ua.deti.icm.awav.data.AuthRepository
 
 class AWAVApplication : Application() {
 
@@ -118,6 +119,14 @@ class AWAVApplication : Application() {
         if (_googlePlayServicesAvailable) {
             Log.i(TAG, "SHA-1 debug fingerprint: ${GoogleServicesHelper.getDebugFingerprint()}")
             Log.i(TAG, "Make sure this fingerprint is added to your Firebase project!")
+        }
+        
+        // Initialize auth repository to ensure user roles and active role are loaded at app startup
+        try {
+            val authRepo = AuthRepository(this)
+            Log.d(TAG, "Auth repository initialized at application startup")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing auth repository at startup", e)
         }
     }
 }
