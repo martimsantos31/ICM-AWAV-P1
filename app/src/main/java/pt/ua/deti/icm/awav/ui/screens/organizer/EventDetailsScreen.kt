@@ -1,5 +1,6 @@
 package pt.ua.deti.icm.awav.ui.screens.organizer
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,28 +19,81 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import pt.ua.deti.icm.awav.AWAVApplication
+import pt.ua.deti.icm.awav.data.repository.EventsRepository
+import pt.ua.deti.icm.awav.data.repository.StandsRepository
+import pt.ua.deti.icm.awav.data.room.entity.Event
+import pt.ua.deti.icm.awav.data.room.entity.Stand
 import pt.ua.deti.icm.awav.ui.theme.Purple
+import pt.ua.deti.icm.awav.ui.viewmodels.EventDetailsViewModel
+import java.text.SimpleDateFormat
+import java.util.*
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventDetailsScreen(
     eventId: String,
-    navController: NavController
+    navController: NavController,
+    viewModel: EventDetailsViewModel = viewModel()
 ) {
-    // In a real app, this would come from a repository
-    val event = remember {
-        Event(
-            id = eventId,
-            title = if (eventId == "1") "Enterro 25" else "BE NEI",
-            description = "lorem ipsum lorem awqdi jsdoaija aodijajepoj ojajdoajjc ojadoj qojedj",
-            imageUrl = "https://via.placeholder.com/150",
-            startDate = if (eventId == "1") "26Apr" else "4May",
-            endDate = if (eventId == "1") "3May" else "5May"
-        )
+    // Log the received eventId
+    Log.d("EventDetailsScreen", "Received eventId parameter: '$eventId'")
+    
+    // State to track parsing errors
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Load event data when the screen is first created
+    LaunchedEffect(eventId) {
+        try {
+            // Try to convert the eventId to Int
+            Log.d("EventDetailsScreen", "Attempting to convert eventId '$eventId' to Int")
+            val eventIdInt = eventId.toInt()
+            Log.d("EventDetailsScreen", "Successfully converted eventId to Int: $eventIdInt")
+            
+            // Load the event using the ViewModel
+            Log.d("EventDetailsScreen", "Loading event with ID: $eventIdInt")
+            viewModel.loadEvent(eventIdInt)
+        } catch (e: NumberFormatException) {
+            // Handle conversion error
+            errorMessage = "Invalid event ID format: $eventId"
+            Log.e("EventDetailsScreen", "Error parsing event ID: $eventId", e)
+        } catch (e: Exception) {
+            // Handle any other errors
+            errorMessage = "Error loading event: ${e.message}"
+            Log.e("EventDetailsScreen", "Error in EventDetailsScreen: ${e.message}", e)
+        }
     }
-
+    
+    // Create coroutine scope for database operations
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Collect state
+    val eventState by viewModel.event.collectAsState()
+    val standsState by viewModel.stands.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    
+    // Log state changes
+    LaunchedEffect(eventState) {
+        Log.d("EventDetailsScreen", "Event state updated: ${eventState?.id} - ${eventState?.name}")
+    }
+    
+    LaunchedEffect(standsState) {
+        Log.d("EventDetailsScreen", "Stands state updated: ${standsState.size} stands loaded")
+    }
+    
+    LaunchedEffect(isLoading) {
+        Log.d("EventDetailsScreen", "Loading state updated: $isLoading")
+    }
+    
+    val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Event Details", "Manage Stands", "Schedule")
 
@@ -48,7 +102,7 @@ fun EventDetailsScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = event.title,
+                        text = eventState?.name ?: "Loading...",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -66,43 +120,193 @@ fun EventDetailsScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Tab row
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = Purple
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title) }
-                    )
-                }
+                CircularProgressIndicator(color = Purple)
             }
-            
-            // Tab content
-            when (selectedTab) {
-                0 -> EventDetailsTab(event)
-                1 -> ManageStandsTab()
-                2 -> ScheduleTab()
+        } else if (eventState == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Event not found")
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // Tab row
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = Purple
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title) }
+                        )
+                    }
+                }
+                
+                // Tab content
+                when (selectedTab) {
+                    0 -> EventDetailsTab(
+                        event = eventState!!,
+                        dateFormatter = dateFormatter,
+                        navController = navController,
+                        onEventUpdated = { updatedEvent ->
+                            coroutineScope.launch {
+                                viewModel.updateEvent(updatedEvent)
+                            }
+                        },
+                        onEventDeleted = {
+                            coroutineScope.launch {
+                                viewModel.deleteEvent(eventState!!)
+                                navController.popBackStack()
+                            }
+                        }
+                    )
+                    1 -> ManageStandsTab(
+                        stands = standsState,
+                        eventId = eventState!!.id,
+                        onStandAdded = { name, description ->
+                            coroutineScope.launch {
+                                viewModel.addStand(name, description, eventState!!.id)
+                            }
+                        },
+                        onStandDeleted = { stand ->
+                            coroutineScope.launch {
+                                viewModel.deleteStand(stand)
+                            }
+                        },
+                        onStandUpdated = { stand ->
+                            coroutineScope.launch {
+                                viewModel.updateStand(stand)
+                            }
+                        }
+                    )
+                    2 -> Text("Schedule tab - To be implemented")
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventDetailsTab(event: Event) {
+fun EventDetailsTab(
+    event: Event,
+    dateFormatter: SimpleDateFormat,
+    navController: NavController,
+    onEventUpdated: (Event) -> Unit,
+    onEventDeleted: () -> Unit
+) {
     var editMode by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf(event.title) }
+    
+    // State for edited fields
+    var name by remember { mutableStateOf(event.name) }
     var description by remember { mutableStateOf(event.description) }
-    var startDate by remember { mutableStateOf(event.startDate) }
-    var endDate by remember { mutableStateOf(event.endDate) }
+    var location by remember { mutableStateOf(event.location) }
+    
+    // Convert String dates to Date objects
+    val startDateStr = event.startDate
+    val endDateStr = event.endDate
+    var startDate by remember { 
+        mutableStateOf(
+            try {
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(startDateStr) ?: Date()
+            } catch (e: Exception) {
+                Date()
+            }
+        ) 
+    }
+    var endDate by remember { 
+        mutableStateOf(
+            try {
+                SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(endDateStr) ?: Date()
+            } catch (e: Exception) {
+                Date()
+            }
+        ) 
+    }
+    
+    // Date picker dialog states
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    
+    // Date Picker Dialogs
+    if (showStartDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = startDate.time
+        )
+        
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            startDate = Date(millis)
+                        }
+                        showStartDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showStartDatePicker = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+    
+    if (showEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = endDate.time
+        )
+        
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            endDate = Date(millis)
+                        }
+                        showEndDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showEndDatePicker = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -110,20 +314,25 @@ fun EventDetailsTab(event: Event) {
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // Image
+        // Image/Icon
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.LightGray.copy(alpha = 0.5f))
+                .background(Purple.copy(alpha = 0.7f))
         ) {
-            AsyncImage(
-                model = event.imageUrl,
-                contentDescription = event.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Event,
+                    contentDescription = event.name,
+                    tint = Color.White,
+                    modifier = Modifier.size(80.dp)
+                )
+            }
             
             // Edit button
             Box(
@@ -133,8 +342,22 @@ fun EventDetailsTab(event: Event) {
                 contentAlignment = Alignment.TopEnd
             ) {
                 FloatingActionButton(
-                    onClick = { editMode = !editMode },
-                    containerColor = Purple,
+                    onClick = { 
+                        if (editMode) {
+                            // Save changes
+                            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                            val updatedEvent = event.copy(
+                                name = name,
+                                description = description,
+                                location = location,
+                                startDate = dateFormat.format(startDate),
+                                endDate = dateFormat.format(endDate)
+                            )
+                            onEventUpdated(updatedEvent)
+                        }
+                        editMode = !editMode 
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
                     Icon(
@@ -151,8 +374,8 @@ fun EventDetailsTab(event: Event) {
         if (editMode) {
             // Editable fields
             OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
+                value = name,
+                onValueChange = { name = it },
                 label = { Text("Event Title") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -177,38 +400,53 @@ fun EventDetailsTab(event: Event) {
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            OutlinedTextField(
+                value = location,
+                onValueChange = { location = it },
+                label = { Text("Location") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Purple,
+                    focusedLabelColor = Purple
+                )
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = startDate,
-                    onValueChange = { startDate = it },
-                    label = { Text("Start Date") },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Purple,
-                        focusedLabelColor = Purple
+                OutlinedButton(
+                    onClick = { showStartDatePicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Start Date"
                     )
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Start: ${dateFormatter.format(startDate)}")
+                }
                 
-                OutlinedTextField(
-                    value = endDate,
-                    onValueChange = { endDate = it },
-                    label = { Text("End Date") },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Purple,
-                        focusedLabelColor = Purple
+                OutlinedButton(
+                    onClick = { showEndDatePicker = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "End Date"
                     )
-                )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("End: ${dateFormatter.format(endDate)}")
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
             
             // Delete button
             Button(
-                onClick = { /* TODO: Delete event and navigate back */ },
+                onClick = onEventDeleted,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error
                 ),
@@ -224,7 +462,7 @@ fun EventDetailsTab(event: Event) {
         } else {
             // Display-only view
             Text(
-                text = title,
+                text = event.name,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -232,11 +470,31 @@ fun EventDetailsTab(event: Event) {
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = description,
+                text = event.description,
                 style = MaterialTheme.typography.bodyLarge
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn,
+                    contentDescription = "Location",
+                    tint = Purple
+                )
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Text(
+                    text = event.location,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -251,7 +509,7 @@ fun EventDetailsTab(event: Event) {
                 Spacer(modifier = Modifier.width(8.dp))
                 
                 Text(
-                    text = "$startDate - $endDate",
+                    text = "${dateFormatter.format(startDate)} - ${dateFormatter.format(endDate)}",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -260,23 +518,22 @@ fun EventDetailsTab(event: Event) {
 }
 
 @Composable
-fun ManageStandsTab() {
-    // Sample stands data
-    val stands = remember {
-        listOf(
-            "Daniel's Chorizo",
-            "NEI Coffee",
-            "NEECT Food Truck"
-        )
-    }
-    
+fun ManageStandsTab(
+    stands: List<Stand>,
+    eventId: Int,
+    onStandAdded: (name: String, description: String) -> Unit,
+    onStandDeleted: (Stand) -> Unit,
+    onStandUpdated: (Stand) -> Unit
+) {
     var showAddStandDialog by remember { mutableStateOf(false) }
     var newStandName by remember { mutableStateOf("") }
+    var newStandDescription by remember { mutableStateOf("") }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // Add Stand button
         Button(
@@ -297,12 +554,31 @@ fun ManageStandsTab() {
         }
         
         // Stands list
-        stands.forEach { standName ->
-            StandItem(
-                name = standName,
-                onEdit = { /* TODO: Edit stand */ },
-                onDelete = { /* TODO: Delete stand */ }
-            )
+        if (stands.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No stands added yet",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            stands.forEach { stand ->
+                StandItem(
+                    stand = stand,
+                    onEdit = { updatedStand -> 
+                        onStandUpdated(updatedStand)
+                    },
+                    onDelete = { 
+                        onStandDeleted(stand)
+                    }
+                )
+            }
         }
     }
     
@@ -312,19 +588,36 @@ fun ManageStandsTab() {
             onDismissRequest = { showAddStandDialog = false },
             title = { Text("Add New Stand") },
             text = {
-                OutlinedTextField(
-                    value = newStandName,
-                    onValueChange = { newStandName = it },
-                    label = { Text("Stand Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column {
+                    OutlinedTextField(
+                        value = newStandName,
+                        onValueChange = { newStandName = it },
+                        label = { Text("Stand Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedTextField(
+                        value = newStandDescription,
+                        onValueChange = { newStandDescription = it },
+                        label = { Text("Stand Description (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        // TODO: Add stand logic
-                        showAddStandDialog = false
-                        newStandName = ""
+                        if (newStandName.isNotBlank()) {
+                            // Add new stand
+                            onStandAdded(newStandName, newStandDescription)
+                            
+                            showAddStandDialog = false
+                            newStandName = ""
+                            newStandDescription = ""
+                        }
                     }
                 ) {
                     Text("Add")
@@ -341,10 +634,14 @@ fun ManageStandsTab() {
 
 @Composable
 fun StandItem(
-    name: String,
-    onEdit: () -> Unit,
+    stand: Stand,
+    onEdit: (Stand) -> Unit,
     onDelete: () -> Unit
 ) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editedName by remember { mutableStateOf(stand.name) }
+    var editedDescription by remember { mutableStateOf(stand.description) }
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -360,19 +657,30 @@ fun StandItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Store,
+                imageVector = Icons.Default.Store,
                 contentDescription = "Stand",
                 tint = Purple,
                 modifier = Modifier.padding(end = 16.dp)
             )
             
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleMedium,
+            Column(
                 modifier = Modifier.weight(1f)
-            )
+            ) {
+                Text(
+                    text = stand.name,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                
+                if (stand.description.isNotBlank()) {
+                    Text(
+                        text = stand.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             
-            IconButton(onClick = onEdit) {
+            IconButton(onClick = { showEditDialog = true }) {
                 Icon(
                     imageVector = Icons.Filled.Edit,
                     contentDescription = "Edit Stand"
@@ -388,162 +696,54 @@ fun StandItem(
             }
         }
     }
-}
-
-@Composable
-fun ScheduleTab() {
-    // Sample schedule data
-    val scheduleItems = remember {
-        listOf(
-            "Opening Ceremony" to "26 Apr, 10:00",
-            "Workshops" to "26 Apr, 14:00",
-            "Conference" to "27 Apr, 09:00",
-            "Dinner" to "27 Apr, 20:00",
-            "Games" to "28 Apr, 15:00",
-            "Closing Party" to "3 May, 22:00"
-        )
-    }
     
-    var showAddScheduleDialog by remember { mutableStateOf(false) }
-    var newEventName by remember { mutableStateOf("") }
-    var newEventTime by remember { mutableStateOf("") }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Add Schedule Item button
-        Button(
-            onClick = { showAddScheduleDialog = true },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Purple
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Add Schedule Item",
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text("Add Schedule Item")
-        }
-        
-        // Schedule list
-        scheduleItems.forEach { (name, time) ->
-            ScheduleItem(
-                name = name,
-                time = time,
-                onEdit = { /* TODO: Edit schedule item */ },
-                onDelete = { /* TODO: Delete schedule item */ }
-            )
-        }
-    }
-    
-    // Add Schedule Item Dialog
-    if (showAddScheduleDialog) {
+    // Edit Stand Dialog
+    if (showEditDialog) {
         AlertDialog(
-            onDismissRequest = { showAddScheduleDialog = false },
-            title = { Text("Add Schedule Item") },
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Stand") },
             text = {
                 Column {
                     OutlinedTextField(
-                        value = newEventName,
-                        onValueChange = { newEventName = it },
-                        label = { Text("Event Name") },
+                        value = editedName,
+                        onValueChange = { editedName = it },
+                        label = { Text("Stand Name") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     OutlinedTextField(
-                        value = newEventTime,
-                        onValueChange = { newEventTime = it },
-                        label = { Text("Date & Time (e.g., 26 Apr, 10:00)") },
-                        modifier = Modifier.fillMaxWidth()
+                        value = editedDescription,
+                        onValueChange = { editedDescription = it },
+                        label = { Text("Stand Description (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        // TODO: Add schedule item logic
-                        showAddScheduleDialog = false
-                        newEventName = ""
-                        newEventTime = ""
+                        if (editedName.isNotBlank()) {
+                            val updatedStand = stand.copy(
+                                name = editedName,
+                                description = editedDescription
+                            )
+                            
+                            onEdit(updatedStand)
+                            showEditDialog = false
+                        }
                     }
                 ) {
-                    Text("Add")
+                    Text("Save")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddScheduleDialog = false }) {
+                TextButton(onClick = { showEditDialog = false }) {
                     Text("Cancel")
                 }
             }
         )
-    }
-}
-
-@Composable
-fun ScheduleItem(
-    name: String,
-    time: String,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Event,
-                contentDescription = "Schedule Item",
-                tint = Purple,
-                modifier = Modifier.padding(end = 16.dp)
-            )
-            
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                
-                Text(
-                    text = time,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = "Edit Schedule Item"
-                )
-            }
-            
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete Schedule Item",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
-        }
     }
 } 
