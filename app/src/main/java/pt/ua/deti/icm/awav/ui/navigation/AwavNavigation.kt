@@ -40,6 +40,7 @@ import pt.ua.deti.icm.awav.ui.screens.worker.ManageStandScreen
 import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen
+import pt.ua.deti.icm.awav.ui.screens.EditProfileScreen
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
@@ -50,6 +51,7 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
     data object Timetable : Screen("timetable", "Timetable", Icons.Filled.Schedule, Icons.Outlined.Schedule)
     data object Stands : Screen("stands", "Stands", Icons.Filled.Store, Icons.Outlined.Store)
     data object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
+    data object EditProfile : Screen("edit_profile", "Edit Profile", Icons.Filled.Edit, Icons.Outlined.Edit)
     
     // Organizer-specific screens
     data object CreateEvent : Screen("create_event", "Create Event", Icons.Filled.Add, Icons.Outlined.Add)
@@ -255,7 +257,14 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             }
             composable(Screen.Timetable.route) { ScheduleScreen(navController) }
             composable(Screen.Stands.route) { StandsScreen(navController) }
-            composable(Screen.Profile.route) { ProfileScreen(navController) }
+            composable(Screen.Profile.route) {
+                ProfileScreen(navController = navController)
+            }
+            
+            // Edit Profile Screen
+            composable(Screen.EditProfile.route) {
+                EditProfileScreen(navController = navController)
+            }
             
             // Organizer screens
             composable(Screen.CreateEvent.route) { 

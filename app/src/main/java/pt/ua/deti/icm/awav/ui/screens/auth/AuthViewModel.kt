@@ -70,6 +70,28 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     }
     
     /**
+     * Update user profile information
+     */
+    fun updateUserProfile(displayName: String, profilePicUri: Uri?, onComplete: (Boolean) -> Unit) {
+        _loading.value = true
+        authRepository.updateUserProfile(displayName, profilePicUri) { success ->
+            _loading.value = false
+            onComplete(success)
+        }
+    }
+    
+    /**
+     * Initialize editing fields with current user data
+     */
+    fun initializeEditFields() {
+        currentUser.value?.let { user ->
+            _displayName.value = user.displayName ?: ""
+            // We don't set profile pic URI because it's stored in Firebase Storage
+            // and we'll need a new URI from the image picker when editing
+        }
+    }
+    
+    /**
      * Authenticate directly with a Google ID token
      */
     fun authenticateWithGoogleToken(idToken: String, onComplete: (Boolean, String?) -> Unit) {

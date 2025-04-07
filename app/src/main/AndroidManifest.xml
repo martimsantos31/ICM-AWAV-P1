@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CREDENTIAL_MANAGER" />
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.USE_CREDENTIALS" />
 
     <!-- NFC permissions -->
     <uses-permission android:name="android.permission.NFC" />
@@ -35,6 +37,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.awav"
         tools:targetApi="31">
+        
+        <!-- Google Play Services version -->
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+            
+        <!-- Maps API key - only needed if using Google Maps -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyAyR8GZ5aCBhUiurDlwLi7Ieq-OUiEVbQM" />
+            
         <activity
             android:name=".MainActivity"
             android:exported="true"
