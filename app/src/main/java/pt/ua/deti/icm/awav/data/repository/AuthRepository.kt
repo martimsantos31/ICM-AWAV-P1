@@ -19,6 +19,11 @@ import kotlinx.coroutines.tasks.await
 import android.net.Uri
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.storage.StorageException
+import pt.ua.deti.icm.awav.AWAVApplication
+import java.io.IOException
+import com.google.firebase.storage.StorageMetadata
+import pt.ua.deti.icm.awav.utils.StorageUtils
 
 class AuthRepository(private val context: Context) {
     
@@ -52,11 +57,27 @@ class AuthRepository(private val context: Context) {
     }
     
     fun checkAuthState() {
-        _currentUser.value = auth.currentUser
-        if (auth.currentUser != null) {
-            fetchUserRoles(auth.currentUser!!.email!!)
-        } else {
-            _userRoles.value = emptyList()
+        auth.currentUser?.reload()?.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                Log.d(TAG, "User reloaded successfully")
+                _currentUser.value = auth.currentUser
+                
+                if (auth.currentUser != null) {
+                    Log.d(TAG, "Current user photo URL: ${auth.currentUser?.photoUrl}")
+                    fetchUserRoles(auth.currentUser!!.email!!)
+                } else {
+                    _userRoles.value = emptyList()
+                }
+            } else {
+                Log.w(TAG, "Failed to reload user", task.exception)
+                _currentUser.value = auth.currentUser
+                
+                if (auth.currentUser != null) {
+                    fetchUserRoles(auth.currentUser!!.email!!)
+                } else {
+                    _userRoles.value = emptyList()
+                }
+            }
         }
     }
     
@@ -156,7 +177,7 @@ class AuthRepository(private val context: Context) {
                         .set(userData)
                         .addOnSuccessListener {
                             // Update the Firebase User profile with display name
-                            updateUserProfile(displayName, profilePicUri) { profileUpdateSuccess ->
+                            updateUserProfileInternal(displayName, profilePicUri) { profileUpdateSuccess ->
                                 if (!profileUpdateSuccess) {
                                     Log.w(TAG, "Failed to update user profile")
                                     Toast.makeText(
@@ -189,70 +210,133 @@ class AuthRepository(private val context: Context) {
             }
     }
     
-    private fun updateUserProfile(displayName: String, profilePicUri: Uri?, onComplete: (Boolean) -> Unit) {
+    // Renamed method to 'internal' to reflect that it's a private implementation detail
+    private fun updateUserProfileInternal(
+        displayName: String,
+        profilePicUri: Uri?,
+        onComplete: (Boolean) -> Unit
+    ) {
         val user = auth.currentUser ?: return onComplete(false)
-        
-        if (profilePicUri != null) {
-            // Upload image to Firebase Storage
-            val storageRef = FirebaseStorage.getInstance().reference
-            val profileImagesRef = storageRef.child("profile_images/${user.uid}.jpg")
-            
-            profileImagesRef.putFile(profilePicUri)
-                .addOnSuccessListener {
-                    // Get the download URL
-                    profileImagesRef.downloadUrl
-                        .addOnSuccessListener { downloadUri: Uri ->
-                            // Update user profile with display name and photo URL
-                            updateUserProfileData(user, displayName, downloadUri, onComplete)
+
+        try {
+            // Check if Google Play Services are available
+            if (!AWAVApplication.googlePlayServicesAvailable) {
+                Log.w(TAG, "Google Play Services unavailable, skipping image upload")
+                updateUserProfileData(user, displayName, null) { success ->
+                    if (success) {
+                        // Also update Firestore
+                        user.email?.let { email ->
+                            usersCollection.document(email)
+                                .update("displayName", displayName)
+                                .addOnSuccessListener {
+                                    Log.d(TAG, "Updated display name in Firestore")
+                                    _currentUser.value = auth.currentUser // Update currentUser to reflect changes
+                                    onComplete(true)
+                                }
+                                .addOnFailureListener { error ->
+                                    Log.w(TAG, "Error updating Firestore", error)
+                                    _currentUser.value = auth.currentUser // Still update the user object
+                                    onComplete(false)
+                                }
+                        } ?: onComplete(true)
+                    } else {
+                        onComplete(false)
+                    }
+                }
+                return
+            }
+
+            if (profilePicUri != null) {
+                try {
+                    // Ensure profile_images folder exists first
+                    StorageUtils.ensureFolderExists("profile_images")
+                    
+                    // Build the path for the profile image
+                    val userId = user.uid
+                    val imagePath = "profile_images/${userId}.jpg"
+                    
+                    Log.d(TAG, "Starting profile image upload to $imagePath")
+                    
+                    // Use the utility to upload the image with built-in fallback
+                    StorageUtils.uploadImage(
+                        context = context,
+                        imageUri = profilePicUri,
+                        path = imagePath,
+                        onSuccess = { downloadUri ->
+                            Log.d(TAG, "Got download URL: $downloadUri")
                             
-                            // Update the user document in Firestore with the photo URL
-                            user.email?.let { email ->
-                                usersCollection.document(email)
-                                    .update("photoUrl", downloadUri.toString())
-                                    .addOnFailureListener { e ->
-                                        Log.w(TAG, "Error updating profile photo URL in Firestore", e)
-                                    }
+                            // Update user profile with display name and photo URL
+                            updateUserProfileData(user, displayName, downloadUri.toString()) { profileUpdateSuccess ->
+                                if (profileUpdateSuccess) {
+                                    // Update the user document in Firestore with the photo URL
+                                    user.email?.let { email ->
+                                        val userData = hashMapOf(
+                                            "displayName" to displayName,
+                                            "photoUrl" to downloadUri.toString(),
+                                            "photoUpdatedAt" to com.google.firebase.Timestamp.now()
+                                        )
+                                        
+                                        Log.d(TAG, "Updating user profile for $email, name=$displayName, hasNewPic=true")
+                                        
+                                        usersCollection.document(email)
+                                            .update(userData as Map<String, Any>)
+                                            .addOnSuccessListener {
+                                                Log.d(TAG, "User document updated with profile data")
+                                                _currentUser.value = auth.currentUser // Update currentUser to reflect changes
+                                                onComplete(true)
+                                            }
+                                            .addOnFailureListener { e ->
+                                                Log.w(TAG, "Error updating user document", e)
+                                                _currentUser.value = auth.currentUser // Still update the user object
+                                                onComplete(true) // Still consider it a success if only Firestore update fails
+                                            }
+                                    } ?: onComplete(true)
+                                } else {
+                                    Log.e(TAG, "Failed to update user profile data")
+                                    onComplete(false)
+                                }
                             }
-                        }
-                        .addOnFailureListener { e: Exception ->
-                            Log.w(TAG, "Error getting download URL for profile image", e)
-                            // Still update profile with name only
+                        },
+                        onFailure = { e ->
+                            Log.e(TAG, "All profile image upload attempts failed: ${e.message}", e)
+                            // Still update the display name
                             updateUserProfileData(user, displayName, null, onComplete)
                         }
-                }
-                .addOnFailureListener { e: Exception ->
-                    Log.w(TAG, "Error uploading profile image", e)
-                    // Still update profile with name only
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error during profile image upload process", e)
+                    // Still update the display name
                     updateUserProfileData(user, displayName, null, onComplete)
                 }
-        } else {
-            // Update user profile with display name only
-            updateUserProfileData(user, displayName, null, onComplete)
+            } else {
+                // Just update the display name if no new picture was selected
+                updateUserProfileData(user, displayName, null, onComplete)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error updating profile", e)
+            onComplete(false)
         }
     }
     
-    private fun updateUserProfileData(
-        user: FirebaseUser, 
-        displayName: String, 
-        photoUri: Uri?,
-        onComplete: (Boolean) -> Unit
-    ) {
+    /**
+     * Basic update of user profile data that doesn't rely on Google Play Services
+     */
+    private fun updateUserProfileData(user: FirebaseUser, displayName: String, photoUrl: String?, onComplete: (Boolean) -> Unit) {
         val profileUpdates = UserProfileChangeRequest.Builder()
             .setDisplayName(displayName)
-            
-        if (photoUri != null) {
-            profileUpdates.setPhotoUri(photoUri)
+        
+        // Only set photo URL if provided
+        if (photoUrl != null) {
+            profileUpdates.setPhotoUri(Uri.parse(photoUrl))
         }
         
         user.updateProfile(profileUpdates.build())
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    Log.d(TAG, "User profile updated successfully")
-                    // Update currentUser to reflect changes
-                    _currentUser.value = auth.currentUser
+                    Log.d(TAG, "User profile updated successfully with basic method")
                     onComplete(true)
                 } else {
-                    Log.w(TAG, "Failed to update user profile", task.exception)
+                    Log.e(TAG, "Failed to update profile with basic method", task.exception)
                     onComplete(false)
                 }
             }
@@ -516,10 +600,46 @@ class AuthRepository(private val context: Context) {
             }
     }
     
+    /**
+     * Update user profile information - can be called from outside to edit profile
+     */
+    fun updateUserProfile(displayName: String, profilePicUri: Uri?, onComplete: (Boolean) -> Unit) {
+        val user = auth.currentUser ?: return onComplete(false)
+        
+        Log.d(TAG, "Updating user profile for ${user.email}, name=$displayName, hasNewPic=${profilePicUri != null}")
+        
+        try {
+            // Use the renamed private method
+            updateUserProfileInternal(displayName, profilePicUri, onComplete)
+        } catch (e: Exception) {
+            // If any unhandled exception occurs, log it and still try to update at least the display name
+            Log.e(TAG, "Error during profile update, falling back to basic update: ${e.message}", e)
+            AWAVApplication.disableGooglePlayServices() // Disable Google features if they're causing issues
+            updateUserProfileData(user, displayName, null) { success ->
+                if (success) {
+                    // Also update Firestore
+                    user.email?.let { email ->
+                        usersCollection.document(email)
+                            .update("displayName", displayName)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "Updated display name in Firestore (emergency fallback)")
+                                onComplete(true)
+                            }
+                            .addOnFailureListener { error ->
+                                Log.w(TAG, "Error updating Firestore in fallback mode", error)
+                                onComplete(false)
+                            }
+                    } ?: onComplete(true)
+                } else {
+                    onComplete(false)
+                }
+            }
+        }
+    }
+    
     companion object {
         private const val TAG = "AuthRepository"
         
-        // Keep a single instance that can be accessed from GoogleAuthHelper
         @Volatile
         private var INSTANCE: AuthRepository? = null
         

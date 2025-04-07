@@ -28,6 +28,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
 import pt.ua.deti.icm.awav.R
 import java.lang.ref.WeakReference
+import pt.ua.deti.icm.awav.AWAVApplication
 
 class GoogleAuthHelper(private val context: Context) {
     
@@ -53,6 +54,13 @@ class GoogleAuthHelper(private val context: Context) {
      * Main entry point for Google Sign-in
      */
     suspend fun signInWithGoogle(onSuccess: (FirebaseUser) -> Unit, onFailure: (Exception) -> Unit) {
+        // If Google Play Services are disabled, fail early
+        if (!AWAVApplication.googlePlayServicesAvailable) {
+            Log.w(TAG, "Google Play Services are disabled on this device")
+            onFailure(Exception("Google Sign-In is not available on this device"))
+            return
+        }
+        
         try {
             // Get the client ID
             val clientId = getServerClientId(context)
@@ -123,6 +131,13 @@ class GoogleAuthHelper(private val context: Context) {
      * This method should be called directly from UI components for Android 12 devices
      */
     fun signInWithGoogleFromActivity(activity: ComponentActivity) {
+        // If Google Play Services are disabled, fail early
+        if (!AWAVApplication.googlePlayServicesAvailable) {
+            Log.w(TAG, "Google Play Services are disabled on this device")
+            handleLegacyFailure(Exception("Google Sign-In is not available on this device"))
+            return
+        }
+        
         try {
             // Log what we're doing
             Log.d(TAG, "Starting signInWithGoogleFromActivity with ${activity.javaClass.simpleName}")
@@ -145,8 +160,15 @@ class GoogleAuthHelper(private val context: Context) {
                 .requestEmail()
                 .build()
                 
-            googleSignInClient = GoogleSignIn.getClient(activity, gso)
-            Log.d(TAG, "Created GoogleSignInClient: ${googleSignInClient?.hashCode()}")
+            try {
+                googleSignInClient = GoogleSignIn.getClient(activity, gso)
+                Log.d(TAG, "Created GoogleSignInClient: ${googleSignInClient?.hashCode()}")
+            } catch (e: SecurityException) {
+                Log.e(TAG, "Security exception in Google Sign-In, disabling Google features: ${e.message}", e)
+                AWAVApplication.disableGooglePlayServices()
+                handleLegacyFailure(Exception("Unable to authenticate with Google on this device"))
+                return
+            }
             
             // Add timeout to prevent indefinite loading
             activity.window?.decorView?.postDelayed({
@@ -503,5 +525,27 @@ class GoogleAuthHelper(private val context: Context) {
             Log.e(TAG, "Error getting web client ID: ${e.message}", e)
             return ""
         }
+    }
+    
+    /**
+     * Fallback method when Google Play Services has security issues
+     * This provides a way to continue using profile features even when Google auth fails
+     */
+    fun handleGooglePlaySecurityIssue() {
+        // Reset any pending callbacks
+        pendingLegacyCallback = null
+        
+        // Reset loading state in auth repository
+        AuthRepository.resetLoadingState()
+        
+        // Log the error
+        Log.e(TAG, "Using fallback due to Google Play Services security exception")
+        
+        // Show toast to user explaining the issue
+        Toast.makeText(
+            context, 
+            "Google Services authentication unavailable. Some features may be limited.", 
+            Toast.LENGTH_LONG
+        ).show()
     }
 } 

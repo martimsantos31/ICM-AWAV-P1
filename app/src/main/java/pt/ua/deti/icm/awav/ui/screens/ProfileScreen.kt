@@ -41,6 +41,16 @@ fun ProfileScreen(
     val userRoles by authViewModel.userRoles.collectAsState()
     val selectedRole = userRoles.firstOrNull()
     
+    // Add a state to track when profile screen is recomposed
+    val refreshTrigger = remember { mutableStateOf(0) }
+
+    // Force refresh when coming back to this screen
+    LaunchedEffect(Unit) {
+        refreshTrigger.value = refreshTrigger.value + 1
+        // Force reload auth state
+        authViewModel.checkAuthState()
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,8 +77,10 @@ fun ProfileScreen(
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(context)
-                            .data(currentUser?.photoUrl)
+                            .data(currentUser?.photoUrl.toString() + "?v=${refreshTrigger.value}")
                             .crossfade(true)
+                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)  // Disable disk cache
+                            .memoryCachePolicy(coil.request.CachePolicy.DISABLED)  // Disable memory cache  
                             .build()
                     ),
                     contentDescription = "Profile picture",
@@ -113,7 +125,9 @@ fun ProfileScreen(
         ProfileMenuItem(
             title = "Edit Profile",
             icon = Icons.Default.Edit,
-            onClick = { /* TODO: Navigate to edit profile screen */ }
+            onClick = { 
+                navController?.navigate("edit_profile")
+            }
         )
         
         ProfileMenuItem(
