@@ -41,10 +41,11 @@ import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen
 import pt.ua.deti.icm.awav.ui.screens.EditProfileScreen
-import pt.ua.deti.icm.awav.ui.screens.MyTicketsScreen
-import pt.ua.deti.icm.awav.ui.screens.BuyTicketScreen
+import pt.ua.deti.icm.awav.ui.screens.FirebaseBuyTicketScreen
+import pt.ua.deti.icm.awav.ui.screens.FirebaseMyTicketsScreen
 import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
@@ -121,16 +122,55 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     val workerScreens = listOf(Screen.ManageStand, Screen.SalesAnalytics, Screen.Profile)
     
     // Get the appropriate screens based on role
-    val screens = when (userRole) {
-        UserRole.ORGANIZER -> organizerScreens
-        UserRole.STAND_WORKER -> workerScreens
-        UserRole.PARTICIPANT -> participantScreens
-        null -> participantScreens // Default to participant screens
+    val screens = remember(userRole, hasActiveTickets) {
+        when (userRole) {
+            UserRole.ORGANIZER -> organizerScreens
+            UserRole.STAND_WORKER -> workerScreens
+            UserRole.PARTICIPANT -> participantScreens
+            null -> participantScreens // Default to participant screens
+        }
+    }
+    
+    // Define which routes are always accessible vs requiring tickets
+    val alwaysAccessibleRoutes = listOf(
+        Screen.Login.route,
+        Screen.Register.route,
+        Screen.Home.route,
+        Screen.Profile.route,
+        Screen.EditProfile.route,
+        Screen.BuyTicket.route,
+        Screen.MyTickets.route
+    )
+    
+    // Observe current destination and redirect if needed - this needs to be at Composable level
+    LaunchedEffect(currentRoute, hasActiveTickets, userRole) {
+        // IMPORTANT: Force a refresh of ticket status when navigation changes to ensure accurate restrictions
+        ticketViewModel.refreshTicketStatus()
+        
+        // Debug all relevant states when route changes
+        Log.d("AwavNavigation", "Route: $currentRoute, hasTickets: $hasActiveTickets, userRole: $userRole, isLoggedIn: $isLoggedIn")
+        
+        // Make sure login state is correct - if we have a user role but not logged in, fix it
+        if (userRole != null && !isLoggedIn) {
+            isLoggedIn = true
+            Log.d("AwavNavigation", "Fixed login state - set to logged in")
+        }
+        
+        if (currentRoute != null && 
+            !alwaysAccessibleRoutes.contains(currentRoute) && 
+            userRole == UserRole.PARTICIPANT && 
+            !hasActiveTickets) {
+            // Redirect to Home if trying to access a restricted route
+            Log.d("AwavNavigation", "Restricting access to $currentRoute - redirecting to home")
+            navController.navigate(Screen.Home.route) {
+                popUpTo(currentRoute) { inclusive = true }
+            }
+        }
     }
     
     Scaffold(
         bottomBar = {
-            if (isLoggedIn && currentRoute != Screen.Login.route) {
+            if (isLoggedIn && currentRoute != Screen.Login.route && currentRoute != Screen.Register.route) {
                 Surface(
                     tonalElevation = 4.dp,
                     color = MaterialTheme.colorScheme.onPrimary,
@@ -146,7 +186,30 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                             contentColor = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            screens.forEach { screen ->
+                            // Use a direct check of hasActiveTickets here to determine which tabs to show
+                            val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+                            
+                            // Only show the screens the user should have access to
+                            val filteredScreens = screens.filter { screen ->
+                                Log.d("NavBar", "Filtering screen: ${screen.label}, userRole=$userRole, hasTickets=$currentHasActiveTickets")
+                                
+                                // Always show Home and Profile
+                                if (screen == Screen.Home || screen == Screen.Profile || screen == Screen.BuyTicket || screen == Screen.MyTickets) {
+                                    return@filter true
+                                }
+                                
+                                // For participants, only show other tabs if they have active tickets
+                                if (userRole == UserRole.PARTICIPANT) {
+                                    val hasAccess = currentHasActiveTickets
+                                    Log.d("NavBar", "Participant access to ${screen.label}: $hasAccess")
+                                    return@filter hasAccess
+                                }
+                                
+                                // For other roles (organizer, worker), show their tabs
+                                return@filter true
+                            }
+                            
+                            filteredScreens.forEach { screen ->
                                 NavigationBarItem(
                                     icon = {
                                         Icon(
@@ -202,6 +265,13 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                         isLoggedIn = true
                         userRole = role
 
+                        // IMPORTANT: For participants, ALWAYS start with restricted access
+                        // Only unlock after explicitly checking Firebase for tickets
+                        if (role == UserRole.PARTICIPANT) {
+                            // Force immediate check for tickets, start with restrictions
+                            ticketViewModel.forceRestrictedStart()
+                        }
+
                         // Navigate to appropriate starting screen based on role
                         val startRoute = when (role) {
                             UserRole.ORGANIZER -> Screen.ManageEvents.route
@@ -228,6 +298,13 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     onRegisterSuccess = { role ->
                         isLoggedIn = true
                         userRole = role
+                        
+                        // IMPORTANT: For participants, ALWAYS start with restricted access
+                        // Only unlock after explicitly checking Firebase for tickets
+                        if (role == UserRole.PARTICIPANT) {
+                            // Force immediate check for tickets, start with restrictions
+                            ticketViewModel.forceRestrictedStart()
+                        }
                         
                         // Navigate to appropriate starting screen based on role
                         val startRoute = when (role) {
@@ -260,16 +337,19 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             
             // Ticket screens
             composable(Screen.MyTickets.route) {
-                MyTicketsScreen(navController = navController)
+                FirebaseMyTicketsScreen(navController = navController)
             }
             
             composable(Screen.BuyTicket.route) {
-                BuyTicketScreen(navController = navController)
+                FirebaseBuyTicketScreen(navController = navController)
             }
 
             // Only allow navigation to these screens if user has tickets
             composable(Screen.Chat.route) {
-                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                // Use recomposition-based approach to check ticket status
+                val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+                
+                if (currentHasActiveTickets || userRole != UserRole.PARTICIPANT) {
                     ChatScreen(navController)
                 } else {
                     // Redirect to home if trying to access without a ticket
@@ -297,7 +377,10 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             }
             
             composable(Screen.Timetable.route) { 
-                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                // Use recomposition-based approach to check ticket status
+                val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+                
+                if (currentHasActiveTickets || userRole != UserRole.PARTICIPANT) {
                     ScheduleScreen(navController) 
                 } else {
                     // Redirect to home if trying to access without a ticket
@@ -311,7 +394,10 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             }
             
             composable(Screen.Stands.route) { 
-                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                // Use recomposition-based approach to check ticket status
+                val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+                
+                if (currentHasActiveTickets || userRole != UserRole.PARTICIPANT) {
                     StandsScreen(navController)
                 } else {
                     // Redirect to home if trying to access without a ticket

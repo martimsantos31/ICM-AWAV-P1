@@ -26,10 +26,13 @@ import pt.ua.deti.icm.awav.data.room.AppDatabase
 import pt.ua.deti.icm.awav.ui.navigation.AwavNavigation
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.theme.Purple
+import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.navigation.NavController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.util.Log
 
 // Singleton for wallet data
 object WalletData {
@@ -45,9 +48,20 @@ object WalletData {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    hasActiveTickets: Boolean = false,
-    navController: NavController? = null
+    hasActiveTickets: Boolean = false,  // This parameter is ignored - we use ViewModel directly
+    navController: NavController? = null,
+    ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
 ) {
+    // IMPORTANT: Get the current ticket status directly from ViewModel for reliability
+    val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+    
+    // Force a refresh of ticket status when HomeScreen appears
+    LaunchedEffect(Unit) {
+        Log.d("HomeScreen", "Refreshing ticket status on HomeScreen appearance")
+        // Use forceFirebaseCheck to make sure we get the latest data from Firebase
+        ticketViewModel.refreshTicketStatus(forceFirebaseCheck = true)
+    }
+    
     val context = LocalContext.current
     val db = Room.databaseBuilder(
         context,
@@ -86,7 +100,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (!hasActiveTickets) {
+            if (!currentHasActiveTickets) {
                 // Show prominent ticket purchase view
                 NoTicketsView(navController)
             } else {

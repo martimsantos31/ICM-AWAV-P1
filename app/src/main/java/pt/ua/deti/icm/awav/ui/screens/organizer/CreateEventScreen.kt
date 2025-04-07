@@ -367,11 +367,21 @@ fun CreateEventScreen(
                             try {
                                 Log.d("CreateEventScreen", "Starting transaction with ViewModel")
                                 // Use the view model to save everything in a transaction
-                                viewModel.createEventWithStands(newEvent, stands)
-                                
-                                Log.d("CreateEventScreen", "Event and stands saved successfully, navigating back")
-                                // Navigate back after successfully saving
-                                navController.popBackStack()
+                                viewModel.createEventWithStands(
+                                    newEvent, 
+                                    stands, 
+                                    10.0, // Default ticket price
+                                    { success ->
+                                        isSaving = false
+                                        if (success) {
+                                            Log.d("CreateEventScreen", "Event and stands saved successfully, navigating back")
+                                            // Navigate back after successfully saving
+                                            navController.popBackStack()
+                                        } else {
+                                            errorMessage = "Failed to create event"
+                                        }
+                                    }
+                                )
                             } catch (e: Exception) {
                                 // Handle error with UI feedback
                                 Log.e("CreateEventScreen", "Error creating event: ${e.message}", e)

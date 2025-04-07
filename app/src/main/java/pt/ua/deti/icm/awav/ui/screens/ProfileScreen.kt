@@ -26,6 +26,7 @@ import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import androidx.lifecycle.viewmodel.compose.viewModel
 import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
+import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.google.firebase.auth.FirebaseUser
@@ -35,7 +36,8 @@ import pt.ua.deti.icm.awav.data.model.UserRole
 @Composable
 fun ProfileScreen(
     navController: NavController? = null,
-    authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
+    authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory),
+    ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
 ) {
     val context = LocalContext.current
     val currentUser by authViewModel.currentUser.collectAsState()
@@ -45,10 +47,13 @@ fun ProfileScreen(
     // Add a state to track when profile screen is recomposed
     val refreshTrigger = remember { mutableStateOf(0) }
 
-    // Refresh user state when ProfileScreen is mounted
+    // Refresh user state and tickets when ProfileScreen is mounted
     LaunchedEffect(true) {
-        Log.d("ProfileScreen", "LaunchedEffect triggered, refreshing user state")
+        Log.d("ProfileScreen", "LaunchedEffect triggered, refreshing user state and tickets")
         authViewModel.refreshUserState()
+        
+        // Force refresh ticket status to update navbar
+        ticketViewModel.refreshTicketStatus(forceFirebaseCheck = true)
     }
     
     Column(
