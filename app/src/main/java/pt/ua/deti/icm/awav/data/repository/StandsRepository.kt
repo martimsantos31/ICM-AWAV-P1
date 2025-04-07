@@ -11,6 +11,7 @@ interface StandsRepository {
     suspend fun insertWorker(worker: Worker)
     suspend fun updateStand(stand: Stand)
     suspend fun deleteStand(stand: Stand)
+    suspend fun deleteWorker(worker: Worker)
     fun getStandById(id: Int): Flow<Stand>
     fun getMenuItemsForStand(standId: Int): Flow<List<MenuItem>>
     fun getWorkersForStand(standId: Int): Flow<List<Worker>>

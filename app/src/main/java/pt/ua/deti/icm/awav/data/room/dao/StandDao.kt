@@ -27,6 +27,9 @@ interface StandDao {
 
     @Delete
     suspend fun deleteStand(stand: Stand)
+    
+    @Delete
+    suspend fun deleteWorker(worker: Worker)
 
     @Query("SELECT * FROM stand WHERE eventId = :eventId")
     suspend fun getStandsForEvent(eventId: Int): List<Stand>

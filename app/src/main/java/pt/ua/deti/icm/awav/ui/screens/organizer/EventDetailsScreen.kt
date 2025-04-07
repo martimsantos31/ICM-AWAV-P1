@@ -52,6 +52,7 @@ import androidx.compose.material3.rememberTimePickerState
 fun EventDetailsScreen(
     eventId: String,
     navController: NavController,
+    onManageUsers: () -> Unit = {},
     viewModel: EventDetailsViewModel = viewModel()
 ) {
     // Log the received eventId
@@ -190,7 +191,8 @@ fun EventDetailsScreen(
                                 viewModel.deleteEvent(eventState!!)
                                 navController.popBackStack()
                             }
-                        }
+                        },
+                        onManageUsers = onManageUsers
                     )
                     1 -> ManageStandsTab(
                         stands = standsState,
@@ -243,9 +245,11 @@ fun EventDetailsTab(
     dateFormatter: SimpleDateFormat,
     navController: NavController,
     onEventUpdated: (Event) -> Unit,
-    onEventDeleted: () -> Unit
+    onEventDeleted: () -> Unit,
+    onManageUsers: () -> Unit = {}
 ) {
     var editMode by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     
     // State for edited fields
     var name by remember { mutableStateOf(event.name) }
@@ -477,20 +481,44 @@ fun EventDetailsTab(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Delete button
-            Button(
-                onClick = onEventDeleted,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                ),
-                modifier = Modifier.fillMaxWidth()
+            // Buttons row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Delete Event",
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text("Delete Event")
+                // Delete button
+                Button(
+                    onClick = {
+                        showDeleteDialog = true
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Delete Event")
+                }
+                
+                // Manage Users button
+                Button(
+                    onClick = onManageUsers,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Purple,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Group,
+                        contentDescription = "Manage Users"
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Manage Users")
+                }
             }
         } else {
             // Display-only view

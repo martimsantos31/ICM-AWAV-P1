@@ -18,7 +18,8 @@ import androidx.room.PrimaryKey
 )
 
 data class Worker(
-    @PrimaryKey val id: Int,
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val standId: Int,
-    val name: String
+    val name: String,
+    val userId: String  // Firebase UID
 ) 

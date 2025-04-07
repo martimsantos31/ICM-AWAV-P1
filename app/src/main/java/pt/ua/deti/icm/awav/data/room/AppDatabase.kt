@@ -30,7 +30,7 @@ import pt.ua.deti.icm.awav.data.room.entity.Worker
         Ticket::class,
         UserTicket::class
     ], 
-    version = 3, 
+    version = 4, 
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -155,11 +155,41 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL("PRAGMA foreign_keys=on")
             }
         }
+        
+        // Migration from 3 to 4: Add userId field to Worker table
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Create a new Worker table with the userId field
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS Worker_new (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "standId INTEGER NOT NULL, " +
+                    "name TEXT NOT NULL, " +
+                    "userId TEXT NOT NULL DEFAULT '', " +
+                    "FOREIGN KEY(standId) REFERENCES Stand(id) ON DELETE CASCADE)"
+                )
+                
+                // Copy data from old table to new table
+                database.execSQL(
+                    "INSERT INTO Worker_new (id, standId, name) " +
+                    "SELECT id, standId, name FROM Worker"
+                )
+                
+                // Drop the old table
+                database.execSQL("DROP TABLE Worker")
+                
+                // Rename the new table to the original name
+                database.execSQL("ALTER TABLE Worker_new RENAME TO Worker")
+                
+                // Recreate index
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_Worker_standId ON Worker (standId)")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return Instance ?: synchronized(this) {
                 val instance = Room.databaseBuilder(context, AppDatabase::class.java, "awav_database")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     // This allows a complete rebuild of the database if migration fails
                     // WARNING: This will delete all data if schema version changes don't have matching migrations
                     .fallbackToDestructiveMigration()
