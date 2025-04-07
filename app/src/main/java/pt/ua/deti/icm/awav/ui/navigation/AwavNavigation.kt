@@ -35,6 +35,8 @@ import pt.ua.deti.icm.awav.ui.screens.*
 import pt.ua.deti.icm.awav.ui.screens.organizer.CreateEventScreen
 import pt.ua.deti.icm.awav.ui.screens.organizer.EventDetailsScreen
 import pt.ua.deti.icm.awav.ui.screens.organizer.ManageEventsScreen
+import pt.ua.deti.icm.awav.ui.screens.organizer.ManageUsersScreen
+import pt.ua.deti.icm.awav.ui.screens.organizer.UserSelectionScreen
 import pt.ua.deti.icm.awav.ui.screens.stand.*
 import pt.ua.deti.icm.awav.ui.screens.worker.ManageStandScreen
 import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
@@ -66,6 +68,8 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
     data object CreateEvent : Screen("create_event", "Create Event", Icons.Filled.Add, Icons.Outlined.Add)
     data object ManageEvents : Screen("manage_events", "Manage Events", Icons.Filled.Event, Icons.Outlined.Event)
     data object EventDetails : Screen("event_details/{eventId}", "Event Details", Icons.Filled.Event, Icons.Outlined.Event)
+    data object ManageUsers : Screen("manage_users/{eventId}", "Manage Users", Icons.Filled.Group, Icons.Outlined.Group)
+    data object AllUsers : Screen("all_users", "Users", Icons.Filled.Group, Icons.Outlined.Group)
     
     // Stand Worker screens
     data object ManageStand : Screen("manage_stand", "Manage Stand", Icons.Filled.Store, Icons.Outlined.Store)
@@ -85,7 +89,8 @@ fun Screen.createRoute(vararg params: Pair<String, String>): String {
         is Screen.StandMenu, 
         is Screen.StandOrder,
         is Screen.StandCart,
-        is Screen.EventDetails -> {
+        is Screen.EventDetails,
+        is Screen.ManageUsers -> {
             var route = this.route
             params.forEach { (key, value) ->
                 route = route.replace("{$key}", value)
@@ -122,7 +127,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     }
     
     // Different navigation tabs based on user role
-    val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.Profile)
+    val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.AllUsers, Screen.Profile)
     val workerScreens = listOf(Screen.ManageStand, Screen.SalesAnalytics, Screen.Profile)
     
     // Get the appropriate screens based on role
@@ -288,27 +293,15 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = { role ->
-                        // Reset ticket status first to ensure we don't carry over previous state
-                        ticketViewModel.resetTicketStatus()
-                        
                         isLoggedIn = true
                         userRole = role
-
-                        // IMPORTANT: For participants, ALWAYS start with restricted access
-                        // Only unlock after explicitly checking Firebase for tickets
-                        if (role == UserRole.PARTICIPANT) {
-                            // Force immediate check for tickets, start with restrictions
-                            ticketViewModel.forceRestrictedStart()
-                        }
-
-                        // Navigate to appropriate starting screen based on role
-                        val startRoute = when (role) {
-                            UserRole.ORGANIZER -> Screen.ManageEvents.route
-                            UserRole.STAND_WORKER -> Screen.ManageStand.route
-                            UserRole.PARTICIPANT -> Screen.Home.route
-                        }
-
-                        navController.navigate(startRoute) {
+                        navController.navigate(
+                            when (role) {
+                                UserRole.ORGANIZER -> Screen.ManageEvents.route
+                                UserRole.STAND_WORKER -> Screen.ManageStand.route
+                                else -> Screen.Home.route
+                            }
+                        ) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     },
@@ -447,12 +440,28 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                 }
             }
             
+            // Event details screen with event ID parameter
             composable(
-                route = Screen.EventDetails.route,
+                Screen.EventDetails.route,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
             ) { backStackEntry ->
-                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: "0"
                 EventDetailsScreen(
+                    eventId = eventId,
+                    navController = navController,
+                    onManageUsers = { 
+                        navController.navigate(Screen.ManageUsers.createRoute("eventId" to eventId))
+                    }
+                )
+            }
+            
+            // Manage Users screen with event ID parameter
+            composable(
+                Screen.ManageUsers.route,
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: "0"
+                ManageUsersScreen(
                     eventId = eventId,
                     navController = navController
                 )
@@ -524,6 +533,11 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     standId = standId,
                     navController = navController
                 )
+            }
+
+            // Add AllUsers screen route
+            composable(Screen.AllUsers.route) {
+                UserSelectionScreen(navController = navController)
             }
         }
     }

@@ -14,7 +14,9 @@ interface EventsRepository {
     suspend fun insertTicket(ticket: Ticket)
     suspend fun insertUserTicket(userTicket: UserTicket): Long
     suspend fun updateEvent(event: Event)
+    suspend fun updateScheduleItem(scheduleItem: ScheduleItem)
     suspend fun deleteEvent(event: Event)
+    suspend fun deleteScheduleItem(scheduleItem: ScheduleItem)
     fun getEventById(id: Int): Flow<Event>
     fun getActiveEvents(): Flow<List<Event>>
     fun getScheduleItemsForEvent(eventId: Int): Flow<List<ScheduleItem>>

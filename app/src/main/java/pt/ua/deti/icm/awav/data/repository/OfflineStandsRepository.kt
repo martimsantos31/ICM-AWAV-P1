@@ -73,6 +73,16 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
         }
     }
     
+    override suspend fun deleteWorker(worker: Worker) {
+        try {
+            standDao.deleteWorker(worker)
+            Log.d("StandsRepository", "Worker deleted successfully: ${worker.id}")
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error deleting worker: ${e.message}", e)
+            throw e
+        }
+    }
+    
     override suspend fun getStandsForEvent(eventId: Int): List<Stand> {
         try {
             val stands = standDao.getStandsForEvent(eventId)
