@@ -1,5 +1,9 @@
 package pt.ua.deti.icm.awav.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,6 +36,7 @@ import coil.request.ImageRequest
 import com.google.firebase.auth.FirebaseUser
 import pt.ua.deti.icm.awav.data.model.UserRole
 import coil.compose.AsyncImagePainter
+import pt.ua.deti.icm.awav.utils.FCMUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,6 +53,67 @@ fun ProfileScreen(
     // Add a state to track when profile screen is recomposed
     val refreshTrigger = remember { mutableStateOf(0) }
 
+    // Add this inside the ProfileScreen composable, before the Scaffold
+    var showFcmTokenDialog by remember { mutableStateOf(false) }
+    var fcmToken by remember { mutableStateOf<String?>(null) }
+    var requestFCMToken by remember { mutableStateOf(false) }
+    
+    // Handle FCM token requests
+    LaunchedEffect(requestFCMToken) {
+        if (requestFCMToken) {
+            FCMUtils.getFCMToken { token ->
+                fcmToken = token
+                showFcmTokenDialog = true
+                requestFCMToken = false
+            }
+        }
+    }
+    
+    // Helper function to copy text to clipboard (called within composable context)
+    val copyToClipboard = { text: String ->
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("FCM Token", text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "Token copied to clipboard", Toast.LENGTH_SHORT).show()
+    }
+    
+    if (showFcmTokenDialog) {
+        AlertDialog(
+            onDismissRequest = { showFcmTokenDialog = false },
+            title = { Text("FCM Token") },
+            text = {
+                Column {
+                    if (fcmToken == null) {
+                        CircularProgressIndicator()
+                    } else {
+                        Text(
+                            text = fcmToken ?: "Failed to get token",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        fcmToken?.let { copyToClipboard(it) }
+                        showFcmTokenDialog = false
+                    }
+                ) {
+                    Text("Copy & Close")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showFcmTokenDialog = false }
+                ) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+    
     // Refresh user state and tickets when ProfileScreen is mounted
     LaunchedEffect(true) {
         Log.d("ProfileScreen", "LaunchedEffect triggered, refreshing user state and tickets")
@@ -221,6 +287,15 @@ fun ProfileScreen(
             title = "Settings",
             icon = Icons.Default.Settings,
             onClick = { /* TODO: Navigate to settings screen */ }
+        )
+        
+        // Add FCM Token menu item
+        ProfileMenuItem(
+            title = "Show FCM Token",
+            icon = Icons.Default.Notifications,
+            onClick = { 
+                requestFCMToken = true
+            }
         )
         
         ProfileMenuItem(

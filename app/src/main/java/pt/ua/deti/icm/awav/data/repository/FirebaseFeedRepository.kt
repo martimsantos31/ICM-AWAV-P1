@@ -20,6 +20,7 @@ import pt.ua.deti.icm.awav.utils.StorageUtils
 import java.io.File
 import java.util.Date
 import java.util.UUID
+import com.google.firebase.functions.FirebaseFunctions
 
 /**
  * Comment data class for feed posts
@@ -188,6 +189,9 @@ class FirebaseFeedRepository {
             // Add post to Firestore
             postsCollection.document(postId).set(postData).await()
             
+            // Trigger notification for all users except the author
+            triggerPostNotification(postId, displayName, content, type)
+            
             Log.d(TAG, "Post created successfully with ID: $postId")
             return Result.success(postId)
         } catch (e: Exception) {
@@ -254,9 +258,16 @@ class FirebaseFeedRepository {
                 // Update the post with the image URL
                 postsCollection.document(postId).update("imageUrl", downloadUrl).await()
                 
+                // Trigger notification for all users except the author
+                triggerPostNotification(postId, displayName, content, type, true)
+                
                 return Result.success(postId)
             } catch (e: Exception) {
                 Log.e(TAG, "Error uploading image: ${e.message}", e)
+                
+                // Still trigger notification for the post without image
+                triggerPostNotification(postId, displayName, content, type)
+                
                 // If image upload fails, still return success for the post without image
                 return Result.success(postId)
             }
@@ -266,6 +277,46 @@ class FirebaseFeedRepository {
             return Result.failure(e)
         } finally {
             _isLoading.value = false
+        }
+    }
+    
+    /**
+     * Trigger a notification when a new post is created
+     */
+    private fun triggerPostNotification(
+        postId: String,
+        authorName: String,
+        content: String,
+        type: FeedPostType,
+        hasImage: Boolean = false
+    ) {
+        try {
+            // Get current user ID or use a default
+            val currentUserId = auth.currentUser?.uid ?: "anonymous"
+            
+            val data = mapOf(
+                "postId" to postId,
+                "authorId" to currentUserId,
+                "authorName" to authorName,
+                "content" to content,
+                "hasImage" to hasImage.toString(),
+                "type" to type.name
+            )
+            
+            // Call the Firebase Cloud Function
+            FirebaseFunctions.getInstance()
+                .getHttpsCallable("triggerPostNotificationCallable")
+                .call(data)
+                .addOnSuccessListener { result ->
+                    Log.d("FirebaseFeedRepository", "Successfully triggered notification: ${result.data}")
+                }
+                .addOnFailureListener { e ->
+                    Log.e("FirebaseFeedRepository", "Error triggering notification: ${e.message}", e)
+                    // Don't throw the error to prevent app crashes
+                }
+        } catch (e: Exception) {
+            Log.e("FirebaseFeedRepository", "Error triggering notification: ${e.message}", e)
+            // Don't throw the error to prevent app crashes
         }
     }
     

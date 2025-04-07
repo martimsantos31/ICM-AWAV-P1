@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">AWAV</string>
     <string name="default_web_client_id">929377202134-91f0n8p0q7m0nlj208a5290pu5nqbgme.apps.googleusercontent.com</string>
+    <string name="default_notification_channel_id">awav_feed_notifications</string>
 </resources>

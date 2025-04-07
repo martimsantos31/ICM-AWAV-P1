@@ -1,7 +1,10 @@
 package pt.ua.deti.icm.awav
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.credentials.CredentialManager
 import com.google.firebase.FirebaseApp
@@ -12,6 +15,10 @@ import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderF
 import com.google.firebase.storage.FirebaseStorage
 import pt.ua.deti.icm.awav.utils.GoogleServicesHelper
 import pt.ua.deti.icm.awav.data.AuthRepository
+import com.google.firebase.messaging.FirebaseMessaging
+import pt.ua.deti.icm.awav.utils.FCMUtils
+import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
+import pt.ua.deti.icm.awav.BuildConfig
 
 class AWAVApplication : Application() {
 
@@ -42,11 +49,23 @@ class AWAVApplication : Application() {
                 Log.w(TAG, "Google Play Services have been disabled due to compatibility issues")
             }
         }
+
+        const val CHANNEL_ID = "channel_awav_default"
     }
     
     override fun onCreate() {
         super.onCreate()
-
+        createNotificationChannel()
+        
+        // Log FCM token for debugging
+        FCMUtils.getFCMToken { token ->
+            if (token != null) {
+                Log.i(TAG, "✅ FCM TOKEN FOR THIS DEVICE: $token")
+                Log.i(TAG, "✅ Use this token for testing notifications")
+            } else {
+                Log.e(TAG, "❌ Failed to retrieve FCM token")
+            }
+        }
 
         FirebaseApp.initializeApp(this)
         Log.d(TAG, "Firebase initialized successfully")
@@ -77,16 +96,25 @@ class AWAVApplication : Application() {
                 Log.d(TAG, "Firebase initialized")
             }
 
-            // Initialize Firebase App Check for better security
+            // Initialize Firebase App Check with error handling
             try {
                 val firebaseAppCheck = FirebaseAppCheck.getInstance()
-                firebaseAppCheck.installAppCheckProviderFactory(
-                    PlayIntegrityAppCheckProviderFactory.getInstance()
-                )
-                Log.d(TAG, "Firebase App Check initialized")
+                
+                // Use Debug provider in debug builds
+                if (BuildConfig.DEBUG) {
+                    firebaseAppCheck.installAppCheckProviderFactory(
+                        DebugAppCheckProviderFactory.getInstance()
+                    )
+                    Log.d(TAG, "Firebase App Check initialized with Debug provider")
+                } else {
+                    firebaseAppCheck.installAppCheckProviderFactory(
+                        PlayIntegrityAppCheckProviderFactory.getInstance()
+                    )
+                    Log.d(TAG, "Firebase App Check initialized with Play Integrity provider")
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize Firebase App Check", e)
-                // Continue without App Check - it's not critical
+                Log.e(TAG, "Error initializing App Check: ${e.message}", e)
+                // Continue without App Check if there's an error
             }
 
             // Initialize Firebase Storage and check if it's working
@@ -127,6 +155,35 @@ class AWAVApplication : Application() {
             Log.d(TAG, "Auth repository initialized at application startup")
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing auth repository at startup", e)
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "AWAV Default Channel"
+            val descriptionText = "Default notification channel for AWAV app"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+            }
+            
+            val notificationManager: NotificationManager = 
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    // Function to get the FCM token
+    fun getFCMToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCMToken", "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+
+            // Get the token
+            val token = task.result
+            Log.d("FCMToken", "Current FCM Token: $token")
         }
     }
 }

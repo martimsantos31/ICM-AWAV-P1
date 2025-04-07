@@ -25,6 +25,8 @@ import java.io.IOException
 import com.google.firebase.storage.StorageMetadata
 import pt.ua.deti.icm.awav.utils.StorageUtils
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.messaging.FirebaseMessaging
+import pt.ua.deti.icm.awav.utils.FCMUtils
 
 class AuthRepository(context: Context) {
     
@@ -382,6 +384,8 @@ class AuthRepository(context: Context) {
     }
     
     fun signIn(email: String, password: String, onComplete: (Boolean) -> Unit) {
+        _isLoading.value = true
+        
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
@@ -408,6 +412,7 @@ class AuthRepository(context: Context) {
                     ).show()
                     onComplete(false)
                 }
+                _isLoading.value = false
             }
     }
     
@@ -556,6 +561,19 @@ class AuthRepository(context: Context) {
         auth.signOut()
         _currentUser.value = null
         _userRoles.value = emptyList()
+        
+        // Clear FCM token from Firestore
+        _currentUser.value?.let { user ->
+            db.collection("users")
+                .document(user.uid)
+                .update("fcmToken", null)
+                .addOnSuccessListener {
+                    Log.d(TAG, "FCM Token cleared on sign out")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error clearing FCM token", e)
+                }
+        }
     }
     
     /**
@@ -672,6 +690,32 @@ class AuthRepository(context: Context) {
                 } else {
                     onComplete(false)
                 }
+            }
+        }
+    }
+    
+    private fun updateUserFCMToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+
+            // Get new FCM registration token
+            val token = task.result
+            Log.d(TAG, "New FCM Token: $token")
+
+            // Update token in Firestore
+            _currentUser.value?.let { user ->
+                db.collection("users")
+                    .document(user.uid)
+                    .update("fcmToken", token)
+                    .addOnSuccessListener {
+                        Log.d(TAG, "FCM Token updated successfully")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Error updating FCM token", e)
+                    }
             }
         }
     }
