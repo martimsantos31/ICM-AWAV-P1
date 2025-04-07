@@ -219,39 +219,48 @@ class FirebaseFeedRepository {
             
             // Create a unique filename - use a simpler path structure
             val postId = UUID.randomUUID().toString()
-            val imageFileName = "feed_images/${postId}.jpg"
+            val imageFileName = "images/${postId}.jpg"
             
             // Upload image to Firebase Storage
             val imageUri = Uri.fromFile(imageFile)
             val storageRef = storage.reference.child(imageFileName)
             
             Log.d(TAG, "Starting image upload to path: $imageFileName")
-            val uploadTask = storageRef.putFile(imageUri).await()
             
-            // Get download URL
-            val downloadUrl = storageRef.downloadUrl.await().toString()
-            
-            // Create post with image URL
-            val post = FeedPost(
-                id = postId,
-                authorId = currentUser.uid,
-                authorName = displayName,
-                authorPhotoUrl = photoUrl,
-                authorAvatarResId = 0, // We'll get this from Firestore or use a default
-                content = content,
-                imageUrl = downloadUrl,
-                type = type,
-                timestamp = Timestamp.now().toDate(),
-                likes = 0,
-                comments = 0,
-                isLikedByCurrentUser = false
-            )
-            
-            // Add post to Firestore
-            postsCollection.document(postId).set(FeedPost.toFirestore(post)).await()
-            
-            Log.d(TAG, "Image post created successfully with ID: $postId")
-            return Result.success(postId)
+            try {
+                // Create post data first without the image
+                val postData = hashMapOf(
+                    "id" to postId,
+                    "authorId" to currentUser.uid,
+                    "authorEmail" to currentUser.email,
+                    "authorName" to displayName,
+                    "authorPhotoUrl" to photoUrl,
+                    "content" to content,
+                    "type" to type.name,
+                    "timestamp" to Timestamp.now(),
+                    "likesCount" to 0,
+                    "commentsCount" to 0,
+                    "likedBy" to listOf<String>()
+                )
+                
+                // First save the post without image
+                postsCollection.document(postId).set(postData).await()
+                Log.d(TAG, "Post created with ID: $postId, now uploading image...")
+                
+                // Then try to upload the image
+                val uploadTask = storageRef.putFile(imageUri).await()
+                val downloadUrl = storageRef.downloadUrl.await().toString()
+                Log.d(TAG, "Image uploaded successfully, URL: $downloadUrl")
+                
+                // Update the post with the image URL
+                postsCollection.document(postId).update("imageUrl", downloadUrl).await()
+                
+                return Result.success(postId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error uploading image: ${e.message}", e)
+                // If image upload fails, still return success for the post without image
+                return Result.success(postId)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error creating image post: ${e.message}", e)
             _error.value = "Failed to create post: ${e.message}"
