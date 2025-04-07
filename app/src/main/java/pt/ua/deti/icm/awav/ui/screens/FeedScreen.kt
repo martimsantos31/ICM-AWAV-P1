@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,11 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -37,10 +43,14 @@ import pt.ua.deti.icm.awav.ui.theme.Purple
 import java.io.File
 import java.util.*
 import kotlin.random.Random
+import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FeedScreen(navController: NavController) {
+fun FeedScreen(
+    navController: NavController? = null,
+    authViewModel: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
+) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -148,8 +158,15 @@ fun FeedScreen(navController: NavController) {
             ) {
                 // Create post card - show for all users for now
                 item {
+                    val currentUser = authViewModel.currentUser.collectAsState().value
+                    val userDoc = authViewModel.userDoc.collectAsState().value
+                    
+                    // Get user profile image URL - first try from Firestore, then fallback to Firebase Auth
+                    val profileImageUrl = userDoc?.getString("photoUrl") ?: currentUser?.photoUrl?.toString()
+                    
                     CreatePostCard(
-                        userAvatarResId = R.drawable.user2,
+                        userAvatarUrl = profileImageUrl,
+                        userAvatarResId = if (profileImageUrl == null) R.drawable.user2 else 0,
                         onCreatePostClick = { showCreatePostDialog = true },
                         onAddImageClick = { 
                             imagePickerLauncher.launch("image/*")
@@ -223,6 +240,12 @@ fun FeedScreen(navController: NavController) {
         var postContent by remember { mutableStateOf("") }
         var isPosting by remember { mutableStateOf(false) }
         
+        // Get user profile data for the dialog
+        val currentUser = authViewModel.currentUser.collectAsState().value
+        val userDoc = authViewModel.userDoc.collectAsState().value
+        val profileImageUrl = userDoc?.getString("photoUrl") ?: currentUser?.photoUrl?.toString()
+        val userName = currentUser?.displayName ?: "User"
+        
         AlertDialog(
             onDismissRequest = { 
                 if (!isPosting) {
@@ -234,6 +257,52 @@ fun FeedScreen(navController: NavController) {
             title = { Text("Create a Post") },
             text = {
                 Column {
+                    // User info row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        // User avatar with URL support
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            if (!profileImageUrl.isNullOrEmpty()) {
+                                // Load from URL if available
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(profileImageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Your Avatar",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                // Default icon
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Default Avatar",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(4.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
+                        
+                        // User name
+                        Text(
+                            text = userName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
                     OutlinedTextField(
                         value = postContent,
                         onValueChange = { postContent = it },
