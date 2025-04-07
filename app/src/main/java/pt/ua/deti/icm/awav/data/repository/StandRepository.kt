@@ -1,126 +1,83 @@
 package pt.ua.deti.icm.awav.data.repository
 
-import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import pt.ua.deti.icm.awav.awavApplication
 import pt.ua.deti.icm.awav.data.model.Cart
-import pt.ua.deti.icm.awav.data.model.MenuItem
-import pt.ua.deti.icm.awav.data.model.Stand
+import pt.ua.deti.icm.awav.data.model.CartItem
+import pt.ua.deti.icm.awav.data.model.Product
+import pt.ua.deti.icm.awav.data.room.entity.MenuItem
+import pt.ua.deti.icm.awav.data.room.entity.Stand
+import java.util.UUID
 
+/**
+ * A singleton repository for stand and menu operations
+ */
 object StandRepository {
+    // Cache for carts
+    private val carts = mutableMapOf<String, Cart>()
     
-    // In-memory cart for the current session
-    private val currentCart = mutableStateOf<Cart?>(null)
+    // Hold a reference to the repository we're wrapping
+    private val standsRepository: StandsRepository by lazy {
+        awavApplication.appContainer.standsRepository
+    }
     
+    // Get stand by ID
+    fun getStandById(standId: String): Stand? {
+        // Convert from String to Int, assuming that's the type in the database
+        val id = standId.toIntOrNull() ?: return null
+        
+        return try {
+            runBlocking {
+                standsRepository.getStandById(id).first()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    // Get menu items for a stand
+    fun getMenuItems(standId: String): List<MenuItem> {
+        val id = standId.toIntOrNull() ?: return emptyList()
+        
+        return try {
+            runBlocking {
+                standsRepository.getMenuItemsForStand(id).first()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    
+    // Get or create a cart for a stand
     fun getCart(standId: String): Cart {
-        if (currentCart.value == null || currentCart.value?.standId != standId) {
-            currentCart.value = Cart(standId)
-        }
-        return currentCart.value!!
+        return carts.getOrPut(standId) { Cart(standId) }
     }
     
-    // Mock data for stands
-    private val stands = listOf(
-        Stand(
-            id = "1",
-            name = "Daniel's Chorizo",
-            description = "Authentic Portuguese chorizo sandwiches and more",
-            imageUrl = "chorizo",
-            eventId = "1",
-            location = "Food Court - North",
-            workersIds = listOf("worker1", "worker2"),
-            products = emptyList(),
-            transactionHistory = emptyList()
-        ),
-        Stand(
-            id = "2",
-            name = "Mohamed's Kebab",
-            description = "Traditional kebabs and Middle Eastern cuisine",
-            imageUrl = "kebab",
-            eventId = "1",
-            location = "Food Court - South",
-            workersIds = listOf("worker3"),
-            products = emptyList(),
-            transactionHistory = emptyList()
+    // Convert Product to MenuItem and save it to the database
+    suspend fun saveProduct(product: Product, standId: Int): String {
+        val menuItem = MenuItem(
+            id = product.id.ifEmpty { UUID.randomUUID().toString() },
+            standId = standId,
+            name = product.name,
+            price = product.price,
+            description = product.description,
+            isAvailable = product.isAvailable
         )
-    )
-    
-    // Mock data for menu items
-    private val menuItems = mapOf(
-        "1" to listOf(
-            MenuItem(
-                id = "1-1",
-                name = "Pão com Chouriço",
-                description = "Traditional Portuguese bread with chorizo",
-                price = 3.5,
-                imageUrl = "chorizo_bread",
-                isAvailable = true,
-                category = "Food"
-            ),
-            MenuItem(
-                id = "1-2",
-                name = "Pão com Chouriço c/Queijo",
-                description = "Portuguese bread with chorizo and cheese",
-                price = 4.0,
-                imageUrl = "chorizo_cheese",
-                isAvailable = false,
-                category = "Food"
-            ),
-            MenuItem(
-                id = "1-3",
-                name = "Água",
-                description = "Bottled water 500ml",
-                price = 2.0,
-                imageUrl = "water",
-                isAvailable = true,
-                category = "Drinks"
-            )
-        ),
-        "2" to listOf(
-            MenuItem(
-                id = "2-1",
-                name = "Kebab de Frango",
-                description = "Chicken kebab with vegetables",
-                price = 5.0,
-                imageUrl = "chicken_kebab",
-                isAvailable = true,
-                category = "Food"
-            ),
-            MenuItem(
-                id = "2-2",
-                name = "Kebab Misto",
-                description = "Mixed meat kebab with vegetables",
-                price = 5.5,
-                imageUrl = "mixed_kebab",
-                isAvailable = true,
-                category = "Food"
-            ),
-            MenuItem(
-                id = "2-3",
-                name = "Refrigerante",
-                description = "Soft drink 330ml",
-                price = 2.5,
-                imageUrl = "soda",
-                isAvailable = true,
-                category = "Drinks"
-            )
-        )
-    )
-    
-    fun getAllStands(): List<Stand> = stands
-    
-    fun getStandById(standId: String): Stand? = stands.find { it.id == standId }
-    
-    fun getMenuItems(standId: String): List<MenuItem> = menuItems[standId] ?: emptyList()
-    
-    fun getMenuItemById(standId: String, menuItemId: String): MenuItem? {
-        return menuItems[standId]?.find { it.id == menuItemId }
+        
+        standsRepository.insertMenuItem(menuItem)
+        return menuItem.id
     }
     
-    fun getWaitTime(standId: String): Int {
-        // Mock wait times - in a real app this would come from the backend
-        return when (standId) {
-            "1" -> 30
-            "2" -> 15
-            else -> 10
-        }
+    // Delete a product/menu item
+    suspend fun deleteProduct(productId: String, standId: Int) {
+        // We'd need to implement a delete method in StandsRepository
+        // For now we can't do this without modifying the interface
+    }
+    
+    // Update a product/menu item
+    suspend fun updateProduct(product: Product, standId: Int) {
+        saveProduct(product, standId)
     }
 } 

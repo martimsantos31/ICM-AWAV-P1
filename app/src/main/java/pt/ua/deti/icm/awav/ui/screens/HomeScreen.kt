@@ -13,13 +13,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.room.Room
 import pt.ua.deti.icm.awav.R
+import pt.ua.deti.icm.awav.data.room.AppDatabase
 import pt.ua.deti.icm.awav.ui.navigation.AwavNavigation
-import pt.ua.deti.icm.awav.ui.screens.organizer.EventsData
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import java.text.SimpleDateFormat
@@ -39,24 +41,29 @@ object WalletData {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen() {
-    // Selected event state from EventsData
-    var selectedEvent by remember { mutableStateOf(EventsData.selectedEvent) }
+
+    val context = LocalContext.current
+    val db = Room.databaseBuilder(
+        context.applicationContext,
+        AppDatabase::class.java, "event_database"
+    ).build()
+
+    // Collect events data as a state
+    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList())
+    // Selected event state from eventData
+    var selectedEvent by remember { mutableStateOf(eventData.firstOrNull()) }
     var expanded by remember { mutableStateOf(false) }
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    
-    // Update when EventsData.selectedEvent changes
-    LaunchedEffect(EventsData.selectedEvent) {
-        selectedEvent = EventsData.selectedEvent
-    }
-    
+
+
     // Wallet charge states
     var showChargeDialog by remember { mutableStateOf(false) }
     var chargeAmount by remember { mutableStateOf("") }
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         text = "Home",
                         style = MaterialTheme.typography.titleLarge,
@@ -92,9 +99,9 @@ fun HomeScreen() {
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         // Event Dropdown
                         OutlinedButton(
                             onClick = { expanded = true },
@@ -109,7 +116,7 @@ fun HomeScreen() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = selectedEvent?.title ?: "No events available",
+                                    text = selectedEvent?.name ?: "No events available",
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                                 Icon(
@@ -118,10 +125,10 @@ fun HomeScreen() {
                                 )
                             }
                         }
-                        
+
                         if (selectedEvent != null) {
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -139,9 +146,9 @@ fun HomeScreen() {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Text(
                                 text = selectedEvent!!.description,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -151,29 +158,28 @@ fun HomeScreen() {
                         }
                     }
                 }
-                
+
                 // Dropdown menu
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
-                    EventsData.events.forEach { event ->
+                    eventData.forEach { event ->
                         DropdownMenuItem(
-                            text = { 
+                            text = {
                                 Column {
-                                    Text(text = event.title)
+                                    Text(text = event.name)
                                     Text(
                                         text = "${dateFormatter.format(event.startDate)} - ${dateFormatter.format(event.endDate)}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
                             },
-                            onClick = {
-                                selectedEvent = event
-                                EventsData.setSelectedEvent(event) // Update the shared selected event
-                                expanded = false
-                            }
+                                onClick = {
+                                    selectedEvent = event
+                                    expanded = false
+                                }
                         )
                     }
                 }
@@ -308,7 +314,7 @@ fun HomeScreen() {
                     
                     OutlinedTextField(
                         value = chargeAmount,
-                        onValueChange = { 
+                        onValueChange = {
                             // Only allow numbers and a single decimal point
                             if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d*$"))) {
                                 chargeAmount = it
