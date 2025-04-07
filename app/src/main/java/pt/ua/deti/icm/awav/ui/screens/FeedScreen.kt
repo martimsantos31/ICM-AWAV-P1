@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +45,7 @@ import java.io.File
 import java.util.*
 import kotlin.random.Random
 import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
+import androidx.core.content.FileProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +64,45 @@ fun FeedScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showCreatePostDialog by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showImageSourceOptions by remember { mutableStateOf(false) }
+    
+    // Create temporary file for camera image
+    val tempImageFile = remember {
+        File.createTempFile(
+            "camera_photo_${System.currentTimeMillis()}", 
+            ".jpg", 
+            context.cacheDir
+        ).apply {
+            deleteOnExit()
+        }
+    }
+    val tempImageUri = remember {
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            tempImageFile
+        )
+    }
+    
+    // Image picker launcher (from gallery)
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+        if (uri != null) {
+            showCreatePostDialog = true
+        }
+    }
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            selectedImageUri = tempImageUri
+            showCreatePostDialog = true
+        }
+    }
     
     // Collect feed posts from repository in real-time
     val postsState = feedRepository.feedPosts.collectAsState()
@@ -87,11 +128,33 @@ fun FeedScreen(
         }
     }
     
-    // Image picker launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedImageUri = uri
+    // Image source selection dialog
+    if (showImageSourceOptions) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceOptions = false },
+            title = { Text("Add Photo") },
+            text = { Text("Choose a source for your photo") },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showImageSourceOptions = false
+                        cameraLauncher.launch(tempImageUri)
+                    }
+                ) {
+                    Text("Take Photo")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { 
+                        showImageSourceOptions = false
+                        imagePickerLauncher.launch("image/*")
+                    }
+                ) {
+                    Text("Choose from Gallery")
+                }
+            }
+        )
     }
     
     // UI Scaffold with snackbar
@@ -168,10 +231,7 @@ fun FeedScreen(
                         userAvatarUrl = profileImageUrl,
                         userAvatarResId = if (profileImageUrl == null) R.drawable.user2 else 0,
                         onCreatePostClick = { showCreatePostDialog = true },
-                        onAddImageClick = { 
-                            imagePickerLauncher.launch("image/*")
-                            showCreatePostDialog = true 
-                        }
+                        onAddImageClick = { showImageSourceOptions = true }
                     )
                 }
                 
@@ -317,6 +377,24 @@ fun FeedScreen(
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Add photo button if no image is selected yet
+                    if (selectedImageUri == null) {
+                        TextButton(
+                            onClick = { showImageSourceOptions = true },
+                            modifier = Modifier.align(Alignment.End),
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = Purple
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = "Add Photo"
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add Photo")
+                        }
+                    }
                     
                     // Show selected image preview
                     selectedImageUri?.let { uri ->

@@ -46,6 +46,7 @@ import pt.ua.deti.icm.awav.ui.screens.FirebaseMyTicketsScreen
 import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.util.Log
+import pt.ua.deti.icm.awav.data.AuthRepository
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
@@ -110,6 +111,9 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     val ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
     val hasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
     
+    // Get access to AuthRepository for user state
+    val authRepository = remember { AuthRepository.getInstance() }
+    
     // Different navigation tabs based on user role and ticket status
     val participantScreens = if (hasActiveTickets) {
         listOf(Screen.Feed, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
@@ -128,6 +132,15 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             UserRole.STAND_WORKER -> workerScreens
             UserRole.PARTICIPANT -> participantScreens
             null -> participantScreens // Default to participant screens
+        }
+    }
+    
+    // When login status changes, ensure we reset the navigation state
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn) {
+            // When logging out, reset hasActiveTickets to ensure proper navigation on next login
+            Log.d("AwavNavigation", "User logged out, resetting navigation state")
+            ticketViewModel.resetTicketStatus()
         }
     }
     
@@ -190,9 +203,21 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                             // Use a direct check of hasActiveTickets here to determine which tabs to show
                             val currentHasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
                             
+                            // Collect current user ID first, outside the remember block
+                            val currentUserId by authRepository.currentUser.collectAsState()
+                            val userUid = currentUserId?.uid ?: "none"
+                            
+                            // Generate a unique key for this user session to force refresh when user changes
+                            val userSessionKey = remember(userRole, userUid) {
+                                "${userRole}_$userUid"
+                            }
+                            
+                            Log.d("NavBar", "Current user session key: $userSessionKey, hasTickets: $currentHasActiveTickets")
+                            
                             // Only show the screens the user should have access to
+                            // Important: Use userSessionKey as part of the filter to force recomposition when user changes
                             val filteredScreens = screens.filter { screen ->
-                                Log.d("NavBar", "Filtering screen: ${screen.label}, userRole=$userRole, hasTickets=$currentHasActiveTickets")
+                                Log.d("NavBar", "Filtering screen: ${screen.label}, userRole=$userRole, hasTickets=$currentHasActiveTickets, userKey=$userSessionKey")
                                 
                                 // Always show Home and Profile
                                 if (screen == Screen.Home || screen == Screen.Profile || screen == Screen.BuyTicket || screen == Screen.MyTickets) {
@@ -263,6 +288,9 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = { role ->
+                        // Reset ticket status first to ensure we don't carry over previous state
+                        ticketViewModel.resetTicketStatus()
+                        
                         isLoggedIn = true
                         userRole = role
 
@@ -297,6 +325,9 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                         }
                     },
                     onRegisterSuccess = { role ->
+                        // Reset ticket status first to ensure we don't carry over previous state
+                        ticketViewModel.resetTicketStatus()
+                        
                         isLoggedIn = true
                         userRole = role
                         

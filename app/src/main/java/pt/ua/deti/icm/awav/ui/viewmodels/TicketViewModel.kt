@@ -68,6 +68,9 @@ class TicketViewModel(
      * This is especially important for new registrations and logins
      */
     fun forceRestrictedStart() {
+        // First, fully reset all state to ensure no leftover data from previous sessions
+        resetTicketStatus()
+        
         // CRITICAL: Always start with restricted access by default
         _hasActiveTickets.value = false
         
@@ -75,6 +78,14 @@ class TicketViewModel(
         
         // Then check Firebase for tickets in the background
         viewModelScope.launch {
+            // Wait a moment to ensure Firebase Auth is fully initialized
+            kotlinx.coroutines.delay(500)
+            Log.d(TAG, "Delayed force check for tickets after login/registration")
+            refreshTicketStatus(forceFirebaseCheck = true)
+            
+            // Double-check again after a longer delay to ensure Firebase data is loaded
+            kotlinx.coroutines.delay(1500)
+            Log.d(TAG, "Second force check for tickets after login/registration")
             refreshTicketStatus(forceFirebaseCheck = true)
         }
     }
@@ -263,6 +274,17 @@ class TicketViewModel(
             _loading.value = false
             false
         }
+    }
+
+    /**
+     * Reset ticket status when user logs out or switches accounts
+     */
+    fun resetTicketStatus() {
+        Log.d(TAG, "Explicitly resetting ticket status to false")
+        _hasActiveTickets.value = false
+        _userTickets.value = emptyList()
+        _userEvents.value = emptyList()
+        _currentUserId.value = null
     }
 
     companion object {

@@ -1,5 +1,4 @@
 package pt.ua.deti.icm.awav.data.repository
-
 import android.net.Uri
 import android.util.Log
 import com.google.firebase.Timestamp

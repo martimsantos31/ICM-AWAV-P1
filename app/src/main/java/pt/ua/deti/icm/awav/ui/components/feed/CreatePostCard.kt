@@ -128,10 +128,10 @@ fun CreatePostCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Image,
-                        contentDescription = "Add Image"
+                        contentDescription = "Add Photo"
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Image")
+                    Text("Add Photo")
                 }
             }
         }
