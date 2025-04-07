@@ -35,12 +35,15 @@ import pt.ua.deti.icm.awav.ui.screens.*
 import pt.ua.deti.icm.awav.ui.screens.organizer.CreateEventScreen
 import pt.ua.deti.icm.awav.ui.screens.organizer.EventDetailsScreen
 import pt.ua.deti.icm.awav.ui.screens.organizer.ManageEventsScreen
+import pt.ua.deti.icm.awav.ui.screens.organizer.UserManagementScreen
 import pt.ua.deti.icm.awav.ui.screens.stand.*
 import pt.ua.deti.icm.awav.ui.screens.worker.ManageStandScreen
 import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
+import pt.ua.deti.icm.awav.ui.screens.worker.OrdersScreen
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen
 import pt.ua.deti.icm.awav.ui.screens.EditProfileScreen
+import android.util.Log
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
@@ -57,10 +60,12 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
     data object CreateEvent : Screen("create_event", "Create Event", Icons.Filled.Add, Icons.Outlined.Add)
     data object ManageEvents : Screen("manage_events", "Manage Events", Icons.Filled.Event, Icons.Outlined.Event)
     data object EventDetails : Screen("event_details/{eventId}", "Event Details", Icons.Filled.Event, Icons.Outlined.Event)
+    data object UserManagement : Screen("user_management", "User Management", Icons.Filled.People, Icons.Outlined.People)
     
     // Stand Worker screens
     data object ManageStand : Screen("manage_stand", "Manage Stand", Icons.Filled.Store, Icons.Outlined.Store)
     data object SalesAnalytics : Screen("sales_analytics", "Sales Analytics", Icons.Filled.BarChart, Icons.Outlined.BarChart)
+    data object Orders : Screen("orders", "Orders", Icons.Filled.ShoppingBasket, Icons.Outlined.ShoppingBasket)
     
     // Stand detail screens for participants
     data object StandDetails : Screen("stand_details/{standId}", "Stand Details", Icons.Filled.Store, Icons.Outlined.Store)
@@ -100,8 +105,8 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     
     // Different navigation tabs based on user role
     val participantScreens = listOf(Screen.Chat, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
-    val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.Profile)
-    val workerScreens = listOf(Screen.ManageStand, Screen.SalesAnalytics, Screen.Profile)
+    val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.UserManagement, Screen.Profile)
+    val workerScreens = listOf(Screen.ManageStand, Screen.Orders, Screen.SalesAnalytics, Screen.Profile)
     
     // Get the appropriate screens based on role
     val screens = when (userRole) {
@@ -185,12 +190,17 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                         isLoggedIn = true
                         userRole = role
                         
+                        // Debug the selected role
+                        Log.d("AwavNavigation", "Login successful with role: $role")
+                        
                         // Navigate to appropriate starting screen based on role
                         val startRoute = when (role) {
                             UserRole.ORGANIZER -> Screen.ManageEvents.route
                             UserRole.STAND_WORKER -> Screen.ManageStand.route
                             UserRole.PARTICIPANT -> Screen.Home.route
                         }
+                        
+                        Log.d("AwavNavigation", "Navigating to start route: $startRoute")
                         
                         navController.navigate(startRoute) {
                             popUpTo(Screen.Login.route) { inclusive = true }
@@ -213,12 +223,17 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                         isLoggedIn = true
                         userRole = role
                         
+                        // Debug the selected role
+                        Log.d("AwavNavigation", "Registration successful with role: $role")
+                        
                         // Navigate to appropriate starting screen based on role
                         val startRoute = when (role) {
                             UserRole.ORGANIZER -> Screen.ManageEvents.route
                             UserRole.STAND_WORKER -> Screen.ManageStand.route
                             UserRole.PARTICIPANT -> Screen.Home.route
                         }
+                        
+                        Log.d("AwavNavigation", "Navigating to start route: $startRoute")
                         
                         navController.navigate(startRoute) {
                             popUpTo(Screen.Register.route) { inclusive = true }
@@ -268,28 +283,133 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             
             // Organizer screens
             composable(Screen.CreateEvent.route) { 
-                CreateEventScreen(navController)
+                if (userRole == UserRole.ORGANIZER) {
+                    CreateEventScreen(navController)
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-organizer
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.STAND_WORKER -> Screen.ManageStand.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.CreateEvent.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             composable(Screen.ManageEvents.route) { 
-                ManageEventsScreen(navController)
+                if (userRole == UserRole.ORGANIZER) {
+                    ManageEventsScreen(navController)
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-organizer
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.STAND_WORKER -> Screen.ManageStand.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.ManageEvents.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             composable(
                 route = Screen.EventDetails.route,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
-                EventDetailsScreen(
-                    eventId = eventId,
-                    navController = navController
-                )
+                if (userRole == UserRole.ORGANIZER) {
+                    EventDetailsScreen(
+                        eventId = eventId,
+                        navController = navController
+                    )
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-organizer
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.STAND_WORKER -> Screen.ManageStand.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(navController.graph.findStartDestination().id)
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            
+            composable(Screen.UserManagement.route) {
+                if (userRole == UserRole.ORGANIZER) {
+                    UserManagementScreen(navController = navController)
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-organizer
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.STAND_WORKER -> Screen.ManageStand.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.UserManagement.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             
             // Stand Worker screens
             composable(Screen.ManageStand.route) { 
-                ManageStandScreen(navController)
+                if (userRole == UserRole.STAND_WORKER) {
+                    ManageStandScreen(navController)
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-worker
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.ORGANIZER -> Screen.ManageEvents.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.ManageStand.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             composable(Screen.SalesAnalytics.route) { 
-                SalesAnalyticsScreen()
+                if (userRole == UserRole.STAND_WORKER) {
+                    SalesAnalyticsScreen()
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-worker
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.ORGANIZER -> Screen.ManageEvents.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.SalesAnalytics.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            composable(Screen.Orders.route) { 
+                if (userRole == UserRole.STAND_WORKER) {
+                    OrdersScreen(navController) 
+                } else {
+                    // Redirect to appropriate home screen if accessed by non-worker
+                    LaunchedEffect(Unit) {
+                        val redirectRoute = when (userRole) {
+                            UserRole.ORGANIZER -> Screen.ManageEvents.route
+                            else -> Screen.Home.route
+                        }
+                        navController.navigate(redirectRoute) {
+                            popUpTo(Screen.Orders.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             
             // Stand detail screens for participants

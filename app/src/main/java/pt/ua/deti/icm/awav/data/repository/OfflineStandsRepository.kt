@@ -63,6 +63,16 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
         }
     }
 
+    override suspend fun updateMenuItem(menuItem: MenuItem) {
+        try {
+            standDao.updateMenuItem(menuItem)
+            Log.d("StandsRepository", "Menu item updated successfully: ${menuItem.id}")
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error updating menu item: ${e.message}", e)
+            throw e
+        }
+    }
+
     override suspend fun deleteStand(stand: Stand) {
         try {
             standDao.deleteStand(stand)
@@ -83,5 +93,37 @@ class OfflineStandsRepository(private val standDao: StandDao) : StandsRepository
             throw e
         }
     }
+
+    override fun getAllStands(): Flow<List<Stand>> {
+        try {
+            val stands = standDao.getAllStands()
+            Log.d("StandsRepository", "Got stands")
+            return stands
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error getting stands", e)
+            throw e
+        }
+    }
+
+    override suspend fun deleteMenuItem(menuItem: MenuItem) {
+        try {
+            standDao.deleteMenuItem(menuItem)
+            Log.d("StandsRepository", "Menu item deleted successfully: ${menuItem.id}")
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error deleting menu item: ${e.message}", e)
+            throw e
+        }
+    }
+    
+    override suspend fun deleteMenuItemById(menuItemId: String) {
+        try {
+            standDao.deleteMenuItemById(menuItemId)
+            Log.d("StandsRepository", "Menu item deleted successfully by ID: $menuItemId")
+        } catch (e: Exception) {
+            Log.e("StandsRepository", "Error deleting menu item by ID: ${e.message}", e)
+            throw e
+        }
+    }
+
 }
 

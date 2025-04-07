@@ -25,8 +25,20 @@ interface StandDao {
     @Update
     suspend fun updateStand(stand: Stand)
 
+    @Update
+    suspend fun updateMenuItem(menuItem: MenuItem)
+
     @Delete
     suspend fun deleteStand(stand: Stand)
+
+    @Delete
+    suspend fun deleteMenuItem(menuItem: MenuItem)
+
+    @Query("DELETE FROM MenuItem WHERE id = :menuItemId")
+    suspend fun deleteMenuItemById(menuItemId: String)
+
+    @Query("SELECT * FROM stand")
+    fun getAllStands() : Flow<List<Stand>>
 
     @Query("SELECT * FROM stand WHERE eventId = :eventId")
     suspend fun getStandsForEvent(eventId: Int): List<Stand>

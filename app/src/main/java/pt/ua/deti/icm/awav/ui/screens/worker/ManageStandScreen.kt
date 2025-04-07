@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,26 +32,28 @@ fun ManageStandScreen(
     navController: NavController,
     viewModel: ManageStandViewModel = viewModel()
 ) {
-    // Hardcoded stand ID for now - in a real app, this would come from authentication
-    val standId = "1"
-    val standIdInt = 1 // For database operations
     val coroutineScope = rememberCoroutineScope()
     
     // UI state
     var showAddProductDialog by remember { mutableStateOf(false) }
+    var showEditProductDialog by remember { mutableStateOf(false) }
     var newProductName by remember { mutableStateOf("") }
     var newProductPrice by remember { mutableStateOf("") }
     var newProductDescription by remember { mutableStateOf("") }
     
-    // State - fetch from ViewModel
+    // State for product being edited
+    var editingProduct by remember { mutableStateOf<Product?>(null) }
+    
+    // ViewModel state
     val standName = viewModel.standName.collectAsState().value
     val products = viewModel.products.collectAsState().value
+    val hasAssignedStands = viewModel.hasAssignedStands.collectAsState().value
+    val assignedStands = viewModel.assignedStands.collectAsState().value
+    val isLoading = viewModel.isLoading.collectAsState().value
     
-    // Load data
-    LaunchedEffect(key1 = standId) {
-        viewModel.loadStand(standId)
-        viewModel.loadProducts(standId)
-    }
+    // Get first stand ID if available (used for operations)
+    val currentStandId = if (assignedStands.isNotEmpty()) assignedStands.first() else ""
+    val currentStandIdInt = currentStandId.toIntOrNull() ?: 0
     
     Scaffold(
         topBar = {
@@ -77,44 +80,98 @@ fun ManageStandScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddProductDialog = true },
-                containerColor = Purple
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Product",
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
+            if (hasAssignedStands) {
+                FloatingActionButton(
+                    onClick = { showAddProductDialog = true },
+                    containerColor = Purple
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Product",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Products Section
-            Text(
-                text = "Products",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            
-            LazyColumn(
-                modifier = Modifier.weight(1f)
-            ) {
-                items(products) { product ->
-                    ProductItem(
-                        product = product,
-                        onEdit = { /* TODO: Edit product */ },
-                        onDelete = { 
-                            coroutineScope.launch {
-                                viewModel.deleteProduct(product, standIdInt)
-                            }
-                        }
+            if (isLoading) {
+                // Show loading indicator
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else if (!hasAssignedStands) {
+                // Show no stands assigned message
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "No stands assigned",
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.error
                     )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "You don't have any stands assigned",
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Please contact an organizer to assign you to a stand",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                // Show products section when user has stands assigned
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Products Section
+                    Text(
+                        text = "Products",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(products) { product ->
+                            ProductItem(
+                                product = product,
+                                onEdit = { 
+                                    // Set the product being edited and show the edit dialog
+                                    editingProduct = product
+                                    newProductName = product.name
+                                    newProductPrice = product.price.toString()
+                                    newProductDescription = product.description
+                                    showEditProductDialog = true
+                                },
+                                onDelete = { 
+                                    coroutineScope.launch {
+                                        viewModel.deleteProduct(product, currentStandIdInt)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -168,7 +225,7 @@ fun ManageStandScreen(
                             
                             // Save the product to the database via ViewModel
                             coroutineScope.launch {
-                                viewModel.saveProduct(newProduct, standIdInt)
+                                viewModel.saveProduct(newProduct, currentStandIdInt)
                             }
                             
                             // Reset fields
@@ -187,6 +244,85 @@ fun ManageStandScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddProductDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
+    // Edit Product Dialog
+    if (showEditProductDialog && editingProduct != null) {
+        AlertDialog(
+            onDismissRequest = { 
+                showEditProductDialog = false
+                editingProduct = null
+            },
+            title = { Text("Edit Product") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newProductName,
+                        onValueChange = { newProductName = it },
+                        label = { Text("Product Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedTextField(
+                        value = newProductPrice,
+                        onValueChange = { newProductPrice = it },
+                        label = { Text("Price (€)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedTextField(
+                        value = newProductDescription,
+                        onValueChange = { newProductDescription = it },
+                        label = { Text("Description") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        // Update the existing product
+                        try {
+                            val price = newProductPrice.toDoubleOrNull() ?: 0.0
+                            val updatedProduct = editingProduct!!.copy(
+                                name = newProductName,
+                                description = newProductDescription,
+                                price = price
+                            )
+                            
+                            // Update the product in the database via ViewModel
+                            coroutineScope.launch {
+                                viewModel.updateProduct(updatedProduct, currentStandIdInt)
+                            }
+                            
+                            // Reset fields
+                            editingProduct = null
+                            newProductName = ""
+                            newProductPrice = ""
+                            newProductDescription = ""
+                            showEditProductDialog = false
+                        } catch (e: Exception) {
+                            // Handle error
+                        }
+                    },
+                    enabled = newProductName.isNotBlank() && newProductPrice.isNotBlank()
+                ) {
+                    Text("Update")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showEditProductDialog = false
+                    editingProduct = null
+                }) {
                     Text("Cancel")
                 }
             }

@@ -69,15 +69,62 @@ object StandRepository {
         standsRepository.insertMenuItem(menuItem)
         return menuItem.id
     }
-    
+
+    // Update wait time for a stand
+    suspend fun updateWaitTime(standId: String, waitTimeMinutes: Int): Boolean {
+        val id = standId.toIntOrNull() ?: return false
+        
+        try {
+            // Get the current stand
+            val stand = standsRepository.getStandById(id).first()
+            
+            // Create an updated stand with the new wait time
+            val updatedStand = stand.copy(waitTimeMinutes = waitTimeMinutes)
+            
+            // Update the stand
+            standsRepository.updateStand(updatedStand)
+            return true
+        } catch (e: Exception) {
+            return false
+        }
+    }
+
     // Delete a product/menu item
     suspend fun deleteProduct(productId: String, standId: Int) {
-        // We'd need to implement a delete method in StandsRepository
-        // For now we can't do this without modifying the interface
+        try {
+            // First try to delete by ID (simpler approach)
+            standsRepository.deleteMenuItemById(productId)
+        } catch (e: Exception) {
+            // If that fails, try to create a MenuItem object and delete it
+            try {
+                // We need to fetch the item first to create a complete MenuItem object
+                val menuItems = standsRepository.getMenuItemsForStand(standId).first()
+                val menuItem = menuItems.find { it.id == productId }
+                
+                if (menuItem != null) {
+                    standsRepository.deleteMenuItem(menuItem)
+                } else {
+                    throw Exception("Menu item with ID $productId not found")
+                }
+            } catch (e2: Exception) {
+                throw Exception("Failed to delete product: ${e2.message}")
+            }
+        }
     }
     
     // Update a product/menu item
     suspend fun updateProduct(product: Product, standId: Int) {
-        saveProduct(product, standId)
+        // Create a MenuItem from the Product
+        val menuItem = MenuItem(
+            id = product.id,  // Keep the existing ID for update
+            standId = standId,
+            name = product.name,
+            price = product.price,
+            description = product.description,
+            isAvailable = product.isAvailable
+        )
+        
+        // Use updateMenuItem instead of insertMenuItem
+        standsRepository.updateMenuItem(menuItem)
     }
 } 

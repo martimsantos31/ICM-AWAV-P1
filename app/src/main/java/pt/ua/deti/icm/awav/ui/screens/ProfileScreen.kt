@@ -130,6 +130,17 @@ fun ProfileScreen(
             }
         )
         
+        // Show User Management option only for organizers
+        if (userRoles.contains(UserRole.ORGANIZER)) {
+            ProfileMenuItem(
+                title = "User Management",
+                icon = Icons.Default.People,
+                onClick = { 
+                    navController?.navigate("user_management")
+                }
+            )
+        }
+        
         ProfileMenuItem(
             title = "My Tickets",
             icon = Icons.Default.ConfirmationNumber,

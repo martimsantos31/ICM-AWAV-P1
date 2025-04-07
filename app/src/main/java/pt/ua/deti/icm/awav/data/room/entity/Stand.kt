@@ -18,7 +18,8 @@ data class Stand(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val description: String,
-    val eventId: Int
+    val eventId: Int,
+    val waitTimeMinutes: Int = 0
 )
 
 
