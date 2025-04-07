@@ -43,7 +43,7 @@ import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
     data object Home : Screen("home", "Home", Icons.Filled.Home, Icons.Outlined.Home)
-    data object Chat : Screen("chat", "Chat", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat)
+    data object Feed : Screen("feed", "Feed", Icons.Filled.List, Icons.Outlined.List)
     data object LiveChat : Screen("live_chat", "Live Chat", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat)
     data object Timetable : Screen("timetable", "Timetable", Icons.Filled.Schedule, Icons.Outlined.Schedule)
     data object Stands : Screen("stands", "Stands", Icons.Filled.Store, Icons.Outlined.Store)
@@ -95,7 +95,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     var userRole by remember { mutableStateOf<UserRole?>(null) }
     
     // Different navigation tabs based on user role
-    val participantScreens = listOf(Screen.Chat, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
+    val participantScreens = listOf(Screen.Feed, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
     val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.Profile)
     val workerScreens = listOf(Screen.ManageStand, Screen.SalesAnalytics, Screen.Profile)
     
@@ -130,7 +130,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                                     icon = {
                                         Icon(
                                             imageVector = if (currentRoute == screen.route || 
-                                                (screen == Screen.Chat && currentRoute == Screen.LiveChat.route && userRole != UserRole.STAND_WORKER) ||
+                                                (screen == Screen.Feed && currentRoute == Screen.LiveChat.route && userRole != UserRole.STAND_WORKER) ||
                                                 (screen == Screen.ManageStand && currentRoute == Screen.ManageStand.route)
                                             ) screen.selectedIcon else screen.unselectedIcon,
                                             contentDescription = screen.label
@@ -143,7 +143,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                                         )
                                     },
                                     selected = currentRoute == screen.route || 
-                                        (screen == Screen.Chat && currentRoute == Screen.LiveChat.route && userRole != UserRole.STAND_WORKER) ||
+                                        (screen == Screen.Feed && currentRoute == Screen.LiveChat.route && userRole != UserRole.STAND_WORKER) ||
                                         (screen == Screen.ManageStand && currentRoute == Screen.ManageStand.route),
                                     onClick = {
                                         navController.navigate(screen.route) {
@@ -197,14 +197,14 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             
             // Common screens
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Chat.route) { 
+            composable(Screen.Feed.route) { 
                 if (userRole != UserRole.STAND_WORKER) {
-                    ChatScreen(navController) 
+                    FeedScreen(navController) 
                 } else {
-                    // Redirect workers to Home screen if they somehow access Chat
+                    // Redirect workers to Home screen if they somehow access Feed
                     LaunchedEffect(Unit) {
                         navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Chat.route) { inclusive = true }
+                            popUpTo(Screen.Feed.route) { inclusive = true }
                         }
                     }
                     Box(modifier = Modifier.fillMaxSize())

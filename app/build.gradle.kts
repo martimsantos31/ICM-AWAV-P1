@@ -79,7 +79,11 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
     annotationProcessor(libs.androidx.room.compiler)
-    
+
+    //Firebase Storage
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.storage)
+
     // Gson for JSON serialization/deserialization
     implementation("com.google.code.gson:gson:2.10.1")
     

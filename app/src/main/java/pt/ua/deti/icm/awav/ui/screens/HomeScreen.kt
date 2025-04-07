@@ -26,6 +26,7 @@ import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import java.text.SimpleDateFormat
 import java.util.*
+import pt.ua.deti.icm.awav.data.room.entity.Event
 
 // Singleton for wallet data
 object WalletData {
@@ -51,10 +52,16 @@ fun HomeScreen() {
     // Collect events data as a state
     val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList())
     // Selected event state from eventData
-    var selectedEvent by remember { mutableStateOf(eventData.firstOrNull()) }
+    var selectedEvent by remember { mutableStateOf<Event?>(null) }
     var expanded by remember { mutableStateOf(false) }
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
+    // Update selected event when eventData changes
+    LaunchedEffect(eventData) {
+        if (eventData.isNotEmpty() && selectedEvent == null) {
+            selectedEvent = eventData.first()
+        }
+    }
 
     // Wallet charge states
     var showChargeDialog by remember { mutableStateOf(false) }
