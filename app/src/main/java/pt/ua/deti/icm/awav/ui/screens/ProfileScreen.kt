@@ -31,6 +31,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.google.firebase.auth.FirebaseUser
 import pt.ua.deti.icm.awav.data.model.UserRole
+import coil.compose.AsyncImagePainter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,10 +51,20 @@ fun ProfileScreen(
     // Refresh user state and tickets when ProfileScreen is mounted
     LaunchedEffect(true) {
         Log.d("ProfileScreen", "LaunchedEffect triggered, refreshing user state and tickets")
+        
+        // Force multiple refreshes to make sure we get the latest data
         authViewModel.refreshUserState()
         
         // Force refresh ticket status to update navbar
         ticketViewModel.refreshTicketStatus(forceFirebaseCheck = true)
+        
+        // Force refresh the profile image
+        refreshTrigger.value = System.currentTimeMillis().toInt()
+        
+        // Add a slight delay and refresh again to make sure Firestore data is loaded
+        kotlinx.coroutines.delay(500)
+        authViewModel.refreshUserState()
+        Log.d("ProfileScreen", "Second refresh triggered after delay")
     }
     
     Column(
@@ -77,22 +88,78 @@ fun ProfileScreen(
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            if (currentUser?.photoUrl != null) {
-                // User has a profile picture
-                Image(
-                    painter = rememberAsyncImagePainter(
+            val photoUrl = currentUser?.photoUrl?.toString()
+            val userDoc by authViewModel.userDoc.collectAsState()
+            val firestorePhotoUrl = userDoc?.getString("photoUrl")
+            
+            // Debug logs to see what URLs we have
+            Log.d("ProfileScreen", "Firebase Auth photoUrl: $photoUrl")
+            Log.d("ProfileScreen", "Firestore photoUrl: $firestorePhotoUrl")
+            
+            // Use Firestore photoUrl if available, otherwise fall back to Firebase Auth photoUrl
+            val effectivePhotoUrl = firestorePhotoUrl ?: photoUrl
+            Log.d("ProfileScreen", "Using effectivePhotoUrl: $effectivePhotoUrl")
+            
+            if (!effectivePhotoUrl.isNullOrEmpty()) {
+                // User has a profile picture - with aggressive cache busting
+                val cacheBustUrl = "$effectivePhotoUrl?v=${System.currentTimeMillis()}"
+                Log.d("ProfileScreen", "Loading image with URL: $cacheBustUrl")
+                
+                // Try to create a direct Firebase Storage URL if it's a Firebase Storage reference
+                val directFirebaseUrl = if (effectivePhotoUrl.contains("firebasestorage.googleapis.com")) {
+                    effectivePhotoUrl
+                } else if (currentUser?.uid != null) {
+                    // As a fallback, try to construct a direct URL to user's profile image
+                    "https://firebasestorage.googleapis.com/v0/b/icm-awav.appspot.com/o/profile_images%2F${currentUser?.uid}.jpg?alt=media&token=1"
+                } else {
+                    null
+                }
+                
+                Log.d("ProfileScreen", "Trying direct Firebase URL as fallback: $directFirebaseUrl")
+                
+                // Try loading both URLs in different composables
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // First try with the effective URL
+                    val painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(context)
-                            .data(currentUser?.photoUrl.toString() + "?v=${refreshTrigger.value}")
+                            .data(cacheBustUrl)
                             .crossfade(true)
-                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)  // Disable disk cache
-                            .memoryCachePolicy(coil.request.CachePolicy.DISABLED)  // Disable memory cache  
+                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                            .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
                             .build()
-                    ),
-                    contentDescription = "Profile picture",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                    )
+                    
+                    // If the first image is loading or error, try the direct URL
+                    if (painter.state is AsyncImagePainter.State.Loading || 
+                        painter.state is AsyncImagePainter.State.Error) {
+                        
+                        if (directFirebaseUrl != null) {
+                            Image(
+                                painter = rememberAsyncImagePainter(
+                                    ImageRequest.Builder(context)
+                                        .data(directFirebaseUrl)
+                                        .crossfade(true)
+                                        .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                                        .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                                        .build()
+                                ),
+                                contentDescription = "Profile picture (direct)",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    } else {
+                        // Show the first image if it loaded successfully
+                        Image(
+                            painter = painter,
+                            contentDescription = "Profile picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
             } else {
+                Log.d("ProfileScreen", "No profile image URL available, showing default icon")
                 // Default profile icon
                 Icon(
                     imageVector = Icons.Default.AccountCircle,

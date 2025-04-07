@@ -24,6 +24,7 @@ import pt.ua.deti.icm.awav.AWAVApplication
 import java.io.IOException
 import com.google.firebase.storage.StorageMetadata
 import pt.ua.deti.icm.awav.utils.StorageUtils
+import com.google.firebase.firestore.DocumentSnapshot
 
 class AuthRepository(context: Context) {
     
@@ -38,6 +39,10 @@ class AuthRepository(context: Context) {
     // Current user state
     private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
+    
+    // User document in Firestore
+    private val _userDoc = MutableStateFlow<DocumentSnapshot?>(null)
+    val userDoc: StateFlow<DocumentSnapshot?> = _userDoc.asStateFlow()
     
     // Available roles for the current user
     private val _userRoles = MutableStateFlow<List<UserRole>>(emptyList())
@@ -92,6 +97,12 @@ class AuthRepository(context: Context) {
             .get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
+                    _userDoc.value = document
+                    
+                    // Debug logs to see the Firestore document content
+                    Log.d(TAG, "Firestore user document loaded for $email")
+                    Log.d(TAG, "Firestore photoUrl: ${document.getString("photoUrl")}")
+                    
                     val roles = document.get("roles") as? List<String> ?: emptyList()
                     val userRoles = roles.mapNotNull { roleName ->
                         try {
@@ -106,6 +117,8 @@ class AuthRepository(context: Context) {
                     // Notify role listeners that roles have been updated
                     roleUpdateListeners.forEach { it(userRoles) }
                 } else {
+                    _userDoc.value = null
+                    Log.d(TAG, "No Firestore document found for user $email")
                     _userRoles.value = emptyList()
                     onComplete?.invoke(emptyList())
                     
@@ -115,6 +128,7 @@ class AuthRepository(context: Context) {
             }
             .addOnFailureListener { e ->
                 Log.w(TAG, "Error fetching user roles", e)
+                _userDoc.value = null
                 _userRoles.value = emptyList()
                 onComplete?.invoke(emptyList())
                 

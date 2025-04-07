@@ -16,6 +16,7 @@ import pt.ua.deti.icm.awav.data.AuthRepository
 import pt.ua.deti.icm.awav.data.model.UserRole
 import android.net.Uri
 import android.util.Log
+import com.google.firebase.firestore.DocumentSnapshot
 
 class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     
@@ -27,6 +28,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     val currentUser = authRepository.currentUser
     val userRoles = authRepository.userRoles
     val repositoryLoading = authRepository.isLoading
+    val userDoc = authRepository.userDoc
     
     // UI state
     private val _email = MutableStateFlow("")
