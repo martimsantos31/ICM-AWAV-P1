@@ -46,6 +46,9 @@ import java.util.*
 import kotlin.random.Random
 import pt.ua.deti.icm.awav.ui.screens.auth.AuthViewModel
 import androidx.core.content.FileProvider
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +87,35 @@ fun FeedScreen(
         )
     }
     
+    // Permission request state
+    var cameraPermissionRequested by remember { mutableStateOf(false) }
+    
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            selectedImageUri = tempImageUri
+            showCreatePostDialog = true
+        }
+    }
+    
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted, launch camera
+            cameraLauncher.launch(tempImageUri)
+        } else {
+            // Permission denied, show message
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Camera permission is required to take photos")
+            }
+        }
+        cameraPermissionRequested = true
+    }
+    
     // Image picker launcher (from gallery)
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -94,13 +126,28 @@ fun FeedScreen(
         }
     }
     
-    // Camera launcher
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        if (success) {
-            selectedImageUri = tempImageUri
-            showCreatePostDialog = true
+    // Function to check camera permission and launch camera
+    val launchCamera = {
+        when {
+            // Check if permission is already granted
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == 
+                    PackageManager.PERMISSION_GRANTED -> {
+                // Permission already granted, launch camera
+                cameraLauncher.launch(tempImageUri)
+            }
+            // Check if we should show rationale
+            cameraPermissionRequested -> {
+                // Permission was previously denied, show message
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        "Please grant camera permission in app settings to take photos"
+                    )
+                }
+            }
+            // Request permission
+            else -> {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
         }
     }
     
@@ -138,7 +185,7 @@ fun FeedScreen(
                 Button(
                     onClick = { 
                         showImageSourceOptions = false
-                        cameraLauncher.launch(tempImageUri)
+                        launchCamera()
                     }
                 ) {
                     Text("Take Photo")
