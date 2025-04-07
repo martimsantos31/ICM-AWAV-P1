@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.flow.Flow
-import pt.ua.deti.icm.awav.awavApplication
+import pt.ua.deti.icm.awav.AWAVApplication
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.data.repository.EventsRepository
@@ -36,7 +36,7 @@ fun ManageEventsScreen(navController: NavController) {
     val dateFormatter = SimpleDateFormat("dd MMM", Locale.getDefault())
 
     // Get the events repository from the application container
-    val eventsRepository = awavApplication.appContainer.eventsRepository
+    val eventsRepository = AWAVApplication.appContainer.eventsRepository
     
     // Collect events data as a state
     val eventData by eventsRepository.getActiveEvents().collectAsState(initial = emptyList())

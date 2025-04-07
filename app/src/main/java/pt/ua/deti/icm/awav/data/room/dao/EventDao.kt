@@ -10,6 +10,7 @@ import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.data.room.entity.Presenters
 import pt.ua.deti.icm.awav.data.room.entity.ScheduleItem
 import pt.ua.deti.icm.awav.data.room.entity.Ticket
+import pt.ua.deti.icm.awav.data.room.entity.UserTicket
 
 @Dao
 interface EventDao {
@@ -24,6 +25,9 @@ interface EventDao {
     
     @Insert
     suspend fun insertTicket(ticket: Ticket)
+
+    @Insert
+    suspend fun insertUserTicket(userTicket: UserTicket): Long
 
     @Update
     suspend fun updateEvent(event: Event)
@@ -50,4 +54,16 @@ interface EventDao {
     
     @Query("SELECT * FROM Ticket WHERE eventId = :eventId")
     fun getTicketsForEvent(eventId: Int): Flow<List<Ticket>>
+
+    @Query("SELECT * FROM UserTicket WHERE userId = :userId")
+    fun getUserTickets(userId: String): Flow<List<UserTicket>>
+    
+    @Query("SELECT * FROM UserTicket WHERE userId = :userId AND ticketId = :ticketId")
+    fun getUserTicketByTicketId(userId: String, ticketId: Int): Flow<UserTicket?>
+    
+    @Query("SELECT COUNT(*) FROM UserTicket WHERE userId = :userId AND isActive = 1")
+    fun getActiveTicketCount(userId: String): Flow<Int>
+    
+    @Query("SELECT e.* FROM events e INNER JOIN Ticket t ON e.id = t.eventId INNER JOIN UserTicket ut ON t.id = ut.ticketId WHERE ut.userId = :userId AND ut.isActive = 1")
+    fun getEventsForUserTickets(userId: String): Flow<List<Event>>
 }

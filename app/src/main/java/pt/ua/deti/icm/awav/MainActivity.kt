@@ -23,14 +23,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         AwavNavigation(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
                         // Show a message for older Android versions
                         Text(
-                            text = "This app requires Android 14 or higher",
+                            text = "This app requires Android 12 or higher",
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxSize()
                         )

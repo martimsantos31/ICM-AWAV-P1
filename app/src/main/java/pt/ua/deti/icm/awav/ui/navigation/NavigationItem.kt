@@ -12,9 +12,9 @@ data class NavigationItem(
 
 val navigationItems = listOf(
     NavigationItem(
-        title = "Chat",
-        icon = Icons.Default.Chat,
-        route = "chat"
+        title = "Feed",
+        icon = Icons.Default.List,
+        route = "feed"
     ),
     NavigationItem(
         title = "Timetable",

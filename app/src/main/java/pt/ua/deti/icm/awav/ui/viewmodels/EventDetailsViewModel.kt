@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import pt.ua.deti.icm.awav.awavApplication
+import pt.ua.deti.icm.awav.AWAVApplication
 import pt.ua.deti.icm.awav.data.repository.EventsRepository
 import pt.ua.deti.icm.awav.data.repository.StandsRepository
 import pt.ua.deti.icm.awav.data.room.entity.Event
@@ -17,8 +17,8 @@ import pt.ua.deti.icm.awav.data.room.entity.Stand
 
 class EventDetailsViewModel : ViewModel() {
     // Get repositories from the application container
-    private val eventsRepository: EventsRepository = awavApplication.appContainer.eventsRepository
-    private val standsRepository: StandsRepository = awavApplication.appContainer.standsRepository
+    private val eventsRepository: EventsRepository = AWAVApplication.appContainer.eventsRepository
+    private val standsRepository: StandsRepository = AWAVApplication.appContainer.standsRepository
     
     // UI State
     private val _event = MutableStateFlow<Event?>(null)

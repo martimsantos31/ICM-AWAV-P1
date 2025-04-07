@@ -3,7 +3,7 @@ package pt.ua.deti.icm.awav.data.repository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import pt.ua.deti.icm.awav.awavApplication
+import pt.ua.deti.icm.awav.AWAVApplication
 import pt.ua.deti.icm.awav.data.model.Cart
 import pt.ua.deti.icm.awav.data.model.CartItem
 import pt.ua.deti.icm.awav.data.model.Product
@@ -20,7 +20,7 @@ object StandRepository {
     
     // Hold a reference to the repository we're wrapping
     private val standsRepository: StandsRepository by lazy {
-        awavApplication.appContainer.standsRepository
+        AWAVApplication.appContainer.standsRepository
     }
     
     // Get stand by ID

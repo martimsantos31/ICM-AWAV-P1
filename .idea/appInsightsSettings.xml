@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="pt.ua.deti.icm.awav" />
+                  <option name="mobileSdkAppId" value="1:929377202134:android:cc4bbacd046bbc45987e77" />
+                  <option name="projectId" value="awav-90ba4" />
+                  <option name="projectNumber" value="929377202134" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

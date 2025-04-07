@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.*
@@ -21,11 +22,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import pt.ua.deti.icm.awav.R
 import pt.ua.deti.icm.awav.data.model.FeedPost
 import pt.ua.deti.icm.awav.data.model.FeedPostType
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import java.text.SimpleDateFormat
 import java.util.*
+import coil.compose.AsyncImage
 
 @Composable
 fun FeedPostItem(
@@ -68,15 +71,29 @@ fun FeedPostItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Author avatar
-                Image(
-                    painter = painterResource(id = post.authorAvatarResId),
-                    contentDescription = "Author Avatar",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
-                )
+                if (post.authorAvatarResId != 0) {
+                    Image(
+                        painter = painterResource(id = post.authorAvatarResId),
+                        contentDescription = "Author Avatar",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // Fallback to default avatar when resource ID is 0
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Author Avatar",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(8.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -132,10 +149,9 @@ fun FeedPostItem(
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    // In a real app, you'd load the image from a URL
-                    // For now, we'll use a placeholder if imageUrl is not null
-                    Image(
-                        painter = painterResource(id = post.authorAvatarResId), // Using avatar as placeholder
+                    // Load the image from URL using Coil
+                    AsyncImage(
+                        model = post.imageUrl,
                         contentDescription = "Post Image",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

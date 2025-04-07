@@ -13,9 +13,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.room.Room
 import pt.ua.deti.icm.awav.data.room.AppDatabase
 import pt.ua.deti.icm.awav.data.room.entity.ScheduleItem
+import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.ui.theme.Purple
 import java.text.SimpleDateFormat
 import java.util.*
@@ -24,13 +24,10 @@ import java.util.*
 @Composable
 fun ScheduleScreen(navController: NavController) {
     val context = LocalContext.current
-    val db = Room.databaseBuilder(
-        context.applicationContext,
-        AppDatabase::class.java, "event_database"
-    ).build()
+    val db = AppDatabase.getDatabase(context)
 
-    // Collect events data as a state
-    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList())
+    // Collect events data as a state with explicit type declaration
+    val eventData by db.eventDao().getActiveEvents().collectAsState(initial = emptyList<Event>())
 
     // Get the currently selected event
     val selectedEvent by remember { derivedStateOf { eventData.firstOrNull() } }

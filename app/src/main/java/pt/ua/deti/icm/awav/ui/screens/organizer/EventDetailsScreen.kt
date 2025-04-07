@@ -24,7 +24,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import pt.ua.deti.icm.awav.awavApplication
+import pt.ua.deti.icm.awav.AWAVApplication
 import pt.ua.deti.icm.awav.data.repository.EventsRepository
 import pt.ua.deti.icm.awav.data.repository.StandsRepository
 import pt.ua.deti.icm.awav.data.room.entity.Event
