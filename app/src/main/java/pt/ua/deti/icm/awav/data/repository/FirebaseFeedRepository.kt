@@ -101,6 +101,7 @@ class FirebaseFeedRepository {
                                 // Get author details
                                 val authorId = data["authorId"] as? String ?: ""
                                 val authorName = data["authorName"] as? String ?: "Unknown User"
+                                val authorPhotoUrl = data["authorPhotoUrl"] as? String
                                 
                                 // Get timestamp
                                 val timestamp = (data["timestamp"] as? Timestamp)?.toDate() ?: Date()
@@ -124,6 +125,7 @@ class FirebaseFeedRepository {
                                     id = doc.id,
                                     authorId = authorId,
                                     authorName = authorName,
+                                    authorPhotoUrl = authorPhotoUrl,
                                     authorAvatarResId = 0, // We'll get this from Firestore or use a default
                                     content = content,
                                     imageUrl = imageUrl,
@@ -165,6 +167,9 @@ class FirebaseFeedRepository {
             val userDoc = userEmail?.let { usersCollection.document(it).get().await() }
             val displayName = userDoc?.getString("displayName") ?: currentUser.displayName ?: "Anonymous"
             
+            // Get user photo URL
+            val photoUrl = userDoc?.getString("photoUrl") ?: currentUser.photoUrl?.toString()
+            
             // Create post data
             val postId = UUID.randomUUID().toString()
             val postData = hashMapOf(
@@ -172,6 +177,7 @@ class FirebaseFeedRepository {
                 "authorId" to currentUser.uid,
                 "authorEmail" to currentUser.email,
                 "authorName" to displayName,
+                "authorPhotoUrl" to photoUrl,
                 "content" to content,
                 "type" to type.name,
                 "timestamp" to Timestamp.now(),
@@ -208,6 +214,9 @@ class FirebaseFeedRepository {
             val userDoc = userEmail?.let { usersCollection.document(it).get().await() }
             val displayName = userDoc?.getString("displayName") ?: currentUser.displayName ?: "Anonymous"
             
+            // Get user photo URL
+            val photoUrl = userDoc?.getString("photoUrl") ?: currentUser.photoUrl?.toString()
+            
             // Create a unique filename - use a simpler path structure
             val postId = UUID.randomUUID().toString()
             val imageFileName = "feed_images/${postId}.jpg"
@@ -227,6 +236,7 @@ class FirebaseFeedRepository {
                 id = postId,
                 authorId = currentUser.uid,
                 authorName = displayName,
+                authorPhotoUrl = photoUrl,
                 authorAvatarResId = 0, // We'll get this from Firestore or use a default
                 content = content,
                 imageUrl = downloadUrl,

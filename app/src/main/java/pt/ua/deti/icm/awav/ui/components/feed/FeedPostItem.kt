@@ -81,6 +81,17 @@ fun FeedPostItem(
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentScale = ContentScale.Crop
                     )
+                } else if (post.authorPhotoUrl != null && post.authorPhotoUrl.isNotEmpty()) {
+                    // Use the author's photo URL from Firebase
+                    AsyncImage(
+                        model = post.authorPhotoUrl,
+                        contentDescription = "Author Avatar",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Crop
+                    )
                 } else {
                     // Fallback to default avatar when resource ID is 0
                     Icon(
