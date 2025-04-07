@@ -73,6 +73,19 @@ fun HomeScreen(
     var selectedEvent by remember { mutableStateOf(eventData.firstOrNull()) }
     var expanded by remember { mutableStateOf(false) }
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    val storageFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    
+    // Function to safely format stored dates
+    fun formatStoredDate(dateStr: String?): String {
+        return try {
+            if (dateStr == null) return "Unknown"
+            val date = storageFormatter.parse(dateStr)
+            date?.let { dateFormatter.format(it) } ?: "Unknown"
+        } catch (e: Exception) {
+            Log.e("HomeScreen", "Error parsing date: $dateStr", e)
+            "Unknown"
+        }
+    }
     
     // Wallet charge states
     var showChargeDialog by remember { mutableStateOf(false) }
@@ -170,7 +183,7 @@ fun HomeScreen(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = "${dateFormatter.format(selectedEvent!!.startDate)} - ${dateFormatter.format(selectedEvent!!.endDate)}",
+                                            text = "${formatStoredDate(selectedEvent!!.startDate)} - ${formatStoredDate(selectedEvent!!.endDate)}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -200,7 +213,7 @@ fun HomeScreen(
                                         Column {
                                             Text(text = event.name)
                                             Text(
-                                                text = "${dateFormatter.format(event.startDate)} - ${dateFormatter.format(event.endDate)}",
+                                                text = "${formatStoredDate(event.startDate)} - ${formatStoredDate(event.endDate)}",
                                                 style = MaterialTheme.typography.bodySmall
                                             )
                                         }
