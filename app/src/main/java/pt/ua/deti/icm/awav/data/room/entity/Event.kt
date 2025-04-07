@@ -70,3 +70,22 @@ data class Ticket(
     val eventId: Int,
     val price: Double
 )
+
+@Entity(
+    foreignKeys = [
+        ForeignKey(
+            entity = Ticket::class,
+            parentColumns = ["id"],
+            childColumns = ["ticketId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("ticketId")]
+)
+data class UserTicket(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val userId: String,  // Firebase user ID
+    val ticketId: Int,   // Reference to the ticket
+    val purchaseDate: String,
+    val isActive: Boolean = true
+)

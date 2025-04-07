@@ -136,7 +136,7 @@ fun ProfileScreen(
         ProfileMenuItem(
             title = "My Tickets",
             icon = Icons.Default.ConfirmationNumber,
-            onClick = { /* TODO: Navigate to tickets screen */ }
+            onClick = { navController?.navigate("my_tickets") }
         )
         
         ProfileMenuItem(

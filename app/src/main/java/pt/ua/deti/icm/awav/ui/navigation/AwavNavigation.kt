@@ -41,6 +41,10 @@ import pt.ua.deti.icm.awav.ui.screens.worker.SalesAnalyticsScreen
 import pt.ua.deti.icm.awav.ui.theme.AWAVStyles
 import pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen
 import pt.ua.deti.icm.awav.ui.screens.EditProfileScreen
+import pt.ua.deti.icm.awav.ui.screens.MyTicketsScreen
+import pt.ua.deti.icm.awav.ui.screens.BuyTicketScreen
+import pt.ua.deti.icm.awav.ui.viewmodels.TicketViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 sealed class Screen(val route: String, val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Login : Screen("login", "Login", Icons.AutoMirrored.Filled.Login, Icons.AutoMirrored.Outlined.Login)
@@ -52,6 +56,10 @@ sealed class Screen(val route: String, val label: String, val selectedIcon: Imag
     data object Stands : Screen("stands", "Stands", Icons.Filled.Store, Icons.Outlined.Store)
     data object Profile : Screen("profile", "Profile", Icons.Filled.Person, Icons.Outlined.Person)
     data object EditProfile : Screen("edit_profile", "Edit Profile", Icons.Filled.Edit, Icons.Outlined.Edit)
+    
+    // Ticket screens
+    data object MyTickets : Screen("my_tickets", "My Tickets", Icons.Filled.ConfirmationNumber, Icons.Outlined.ConfirmationNumber)
+    data object BuyTicket : Screen("buy_ticket", "Buy Ticket", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart)
     
     // Organizer-specific screens
     data object CreateEvent : Screen("create_event", "Create Event", Icons.Filled.Add, Icons.Outlined.Add)
@@ -98,8 +106,17 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
     var isLoggedIn by remember { mutableStateOf(false) }
     var userRole by remember { mutableStateOf<UserRole?>(null) }
     
-    // Different navigation tabs based on user role
-    val participantScreens = listOf(Screen.Chat, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
+    // Track whether user has active tickets
+    val ticketViewModel: TicketViewModel = viewModel(factory = TicketViewModel.Factory)
+    val hasActiveTickets by ticketViewModel.hasActiveTickets.collectAsState()
+    
+    // Different navigation tabs based on user role and ticket status
+    val participantScreens = if (hasActiveTickets) {
+        listOf(Screen.Chat, Screen.Timetable, Screen.Home, Screen.Stands, Screen.Profile)
+    } else {
+        listOf(Screen.Home, Screen.Profile) // Limited access without tickets
+    }
+    
     val organizerScreens = listOf(Screen.ManageEvents, Screen.CreateEvent, Screen.Profile)
     val workerScreens = listOf(Screen.ManageStand, Screen.SalesAnalytics, Screen.Profile)
     
@@ -179,19 +196,19 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             // Auth screen
-            composable(Screen.Login.route) { 
+            composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = { role ->
                         isLoggedIn = true
                         userRole = role
-                        
+
                         // Navigate to appropriate starting screen based on role
                         val startRoute = when (role) {
                             UserRole.ORGANIZER -> Screen.ManageEvents.route
                             UserRole.STAND_WORKER -> Screen.ManageStand.route
                             UserRole.PARTICIPANT -> Screen.Home.route
                         }
-                        
+
                         navController.navigate(startRoute) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
@@ -199,17 +216,16 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     navController = navController
                 )
             }
-            
+
             // Register screen
             composable(Screen.Register.route) {
-                // Use the RegisterScreen from the auth package
                 pt.ua.deti.icm.awav.ui.screens.auth.RegisterScreen(
                     onNavigateToLogin = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Register.route) { inclusive = true }
                         }
                     },
-                    onRegisterSuccess = { role: UserRole ->
+                    onRegisterSuccess = { role ->
                         isLoggedIn = true
                         userRole = role
                         
@@ -226,37 +242,13 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     }
                 )
             }
+
+            // Home screens
+            composable(Screen.Home.route) {
+                HomeScreen(hasActiveTickets = hasActiveTickets, navController = navController)
+            }
             
-            // Common screens
-            composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Chat.route) { 
-                if (userRole != UserRole.STAND_WORKER) {
-                    ChatScreen(navController) 
-                } else {
-                    // Redirect workers to Home screen if they somehow access Chat
-                    LaunchedEffect(Unit) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Chat.route) { inclusive = true }
-                        }
-                    }
-                    Box(modifier = Modifier.fillMaxSize())
-                }
-            }
-            composable(Screen.LiveChat.route) { 
-                if (userRole != UserRole.STAND_WORKER) {
-                    LiveChatScreen(navController)
-                } else {
-                    // Redirect workers to Home screen if they somehow access LiveChat
-                    LaunchedEffect(Unit) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.LiveChat.route) { inclusive = true }
-                        }
-                    }
-                    Box(modifier = Modifier.fillMaxSize())
-                }
-            }
-            composable(Screen.Timetable.route) { ScheduleScreen(navController) }
-            composable(Screen.Stands.route) { StandsScreen(navController) }
+            // Profile screen - common for all roles
             composable(Screen.Profile.route) {
                 ProfileScreen(navController = navController)
             }
@@ -266,13 +258,95 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                 EditProfileScreen(navController = navController)
             }
             
+            // Ticket screens
+            composable(Screen.MyTickets.route) {
+                MyTicketsScreen(navController = navController)
+            }
+            
+            composable(Screen.BuyTicket.route) {
+                BuyTicketScreen(navController = navController)
+            }
+
+            // Only allow navigation to these screens if user has tickets
+            composable(Screen.Chat.route) {
+                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                    ChatScreen(navController)
+                } else {
+                    // Redirect to home if trying to access without a ticket
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Chat.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            
+            composable(Screen.LiveChat.route) { 
+                if (userRole != UserRole.STAND_WORKER) {
+                    LiveChatScreen(navController)
+                } else {
+                    // Redirect workers to Home if they somehow access LiveChat
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.LiveChat.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            
+            composable(Screen.Timetable.route) { 
+                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                    ScheduleScreen(navController) 
+                } else {
+                    // Redirect to home if trying to access without a ticket
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Timetable.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            
+            composable(Screen.Stands.route) { 
+                if (hasActiveTickets || userRole != UserRole.PARTICIPANT) {
+                    StandsScreen(navController)
+                } else {
+                    // Redirect to home if trying to access without a ticket
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Stands.route) { inclusive = true }
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
+            }
+            
             // Organizer screens
             composable(Screen.CreateEvent.route) { 
-                CreateEventScreen(navController)
+                if (userRole == UserRole.ORGANIZER) {
+                    CreateEventScreen(navController)
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route)
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
+            
             composable(Screen.ManageEvents.route) { 
-                ManageEventsScreen(navController)
+                if (userRole == UserRole.ORGANIZER) {
+                    ManageEventsScreen(navController)
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route)
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
+            
             composable(
                 route = Screen.EventDetails.route,
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -286,10 +360,25 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
             
             // Stand Worker screens
             composable(Screen.ManageStand.route) { 
-                ManageStandScreen(navController)
+                if (userRole == UserRole.STAND_WORKER) {
+                    ManageStandScreen(navController)
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route)
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
+            
             composable(Screen.SalesAnalytics.route) { 
-                SalesAnalyticsScreen()
+                if (userRole == UserRole.STAND_WORKER) {
+                    SalesAnalyticsScreen()
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate(Screen.Home.route)
+                    }
+                    Box(modifier = Modifier.fillMaxSize())
+                }
             }
             
             // Stand detail screens for participants
@@ -303,7 +392,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     navController = navController
                 )
             }
-            
+
             composable(
                 route = Screen.StandMenu.route,
                 arguments = listOf(navArgument("standId") { type = NavType.StringType })
@@ -314,7 +403,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     navController = navController
                 )
             }
-            
+
             composable(
                 route = Screen.StandOrder.route,
                 arguments = listOf(navArgument("standId") { type = NavType.StringType })
@@ -325,7 +414,7 @@ fun AwavNavigation(modifier: Modifier = Modifier) {
                     navController = navController
                 )
             }
-            
+
             composable(
                 route = Screen.StandCart.route,
                 arguments = listOf(navArgument("standId") { type = NavType.StringType })

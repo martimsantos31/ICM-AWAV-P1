@@ -8,6 +8,7 @@ import pt.ua.deti.icm.awav.data.room.entity.Event
 import pt.ua.deti.icm.awav.data.room.entity.Presenters
 import pt.ua.deti.icm.awav.data.room.entity.ScheduleItem
 import pt.ua.deti.icm.awav.data.room.entity.Ticket
+import pt.ua.deti.icm.awav.data.room.entity.UserTicket
 
 class OfflineEventsRepository(private val eventDao: EventDao) : EventsRepository {
     override fun getActiveEvents(): Flow<List<Event>> = eventDao.getActiveEvents()
@@ -26,6 +27,18 @@ class OfflineEventsRepository(private val eventDao: EventDao) : EventsRepository
     
     override fun getTicketsForEvent(eventId: Int): Flow<List<Ticket>> = 
         eventDao.getTicketsForEvent(eventId)
+
+    override fun getUserTickets(userId: String): Flow<List<UserTicket>> =
+        eventDao.getUserTickets(userId)
+        
+    override fun getUserTicketByTicketId(userId: String, ticketId: Int): Flow<UserTicket?> =
+        eventDao.getUserTicketByTicketId(userId, ticketId)
+        
+    override fun getActiveTicketCount(userId: String): Flow<Int> =
+        eventDao.getActiveTicketCount(userId)
+        
+    override fun getEventsForUserTickets(userId: String): Flow<List<Event>> =
+        eventDao.getEventsForUserTickets(userId)
 
     override suspend fun insertEvent(event: Event): Long {
         try {
@@ -47,6 +60,9 @@ class OfflineEventsRepository(private val eventDao: EventDao) : EventsRepository
     
     override suspend fun insertTicket(ticket: Ticket) = 
         eventDao.insertTicket(ticket)
+        
+    override suspend fun insertUserTicket(userTicket: UserTicket): Long =
+        eventDao.insertUserTicket(userTicket)
 
     override suspend fun updateEvent(event: Event) {
         try {

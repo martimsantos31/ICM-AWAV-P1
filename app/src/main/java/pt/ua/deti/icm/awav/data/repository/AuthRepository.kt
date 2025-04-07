@@ -668,12 +668,8 @@ class AuthRepository(context: Context) {
         @Volatile
         private var INSTANCE: AuthRepository? = null
         
-        fun getInstance(context: Context): AuthRepository {
-            return INSTANCE ?: synchronized(this) {
-                val instance = AuthRepository(context)
-                INSTANCE = instance
-                instance
-            }
+        fun getInstance(): AuthRepository {
+            return INSTANCE ?: throw IllegalStateException("AuthRepository not initialized")
         }
         
         /**
