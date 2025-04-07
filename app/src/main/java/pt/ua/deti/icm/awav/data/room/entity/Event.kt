@@ -29,7 +29,7 @@ data class Event(
     indices = [Index("eventId")]
 )
 data class ScheduleItem(
-    @PrimaryKey val id: Int,
+    @PrimaryKey(autoGenerate = true) val id: Int,
     val eventId: Int,
     val title: String,
     val startTime: String,

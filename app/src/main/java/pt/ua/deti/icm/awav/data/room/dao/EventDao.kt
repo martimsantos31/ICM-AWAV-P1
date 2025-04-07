@@ -31,9 +31,15 @@ interface EventDao {
 
     @Update
     suspend fun updateEvent(event: Event)
+    
+    @Update
+    suspend fun updateScheduleItem(scheduleItem: ScheduleItem)
 
     @Delete
     suspend fun deleteEvent(event: Event)
+    
+    @Delete
+    suspend fun deleteScheduleItem(scheduleItem: ScheduleItem)
 
     @Query("SELECT * FROM events WHERE name = :name")
     suspend fun getEventByName(name: String): Event?
@@ -43,8 +49,6 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE isActive = 1")
     fun getActiveEvents(): Flow<List<Event>>
-
-
     
     @Query("SELECT * FROM ScheduleItem WHERE eventId = :eventId")
     fun getScheduleItemsForEvent(eventId: Int): Flow<List<ScheduleItem>>
@@ -52,9 +56,11 @@ interface EventDao {
     @Query("SELECT * FROM Presenters WHERE scheduleItemId = :scheduleItemId")
     fun getPresentersForScheduleItem(scheduleItemId: Int): Flow<List<Presenters>>
     
+    // Tickets queries
     @Query("SELECT * FROM Ticket WHERE eventId = :eventId")
     fun getTicketsForEvent(eventId: Int): Flow<List<Ticket>>
-
+    
+    // User tickets queries
     @Query("SELECT * FROM UserTicket WHERE userId = :userId")
     fun getUserTickets(userId: String): Flow<List<UserTicket>>
     
@@ -64,6 +70,6 @@ interface EventDao {
     @Query("SELECT COUNT(*) FROM UserTicket WHERE userId = :userId AND isActive = 1")
     fun getActiveTicketCount(userId: String): Flow<Int>
     
-    @Query("SELECT e.* FROM events e INNER JOIN Ticket t ON e.id = t.eventId INNER JOIN UserTicket ut ON t.id = ut.ticketId WHERE ut.userId = :userId AND ut.isActive = 1")
+    @Query("SELECT e.* FROM events e INNER JOIN Ticket t ON e.id = t.eventId INNER JOIN UserTicket ut ON t.id = ut.ticketId WHERE ut.userId = :userId")
     fun getEventsForUserTickets(userId: String): Flow<List<Event>>
 }

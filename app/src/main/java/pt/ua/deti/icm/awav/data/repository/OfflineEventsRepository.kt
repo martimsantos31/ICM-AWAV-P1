@@ -170,5 +170,27 @@ class OfflineEventsRepository(private val eventDao: EventDao) : EventsRepository
             throw e
         }
     }
+
+    override suspend fun updateScheduleItem(scheduleItem: ScheduleItem) {
+        try {
+            // Use ScheduleItemDao through the EventDao
+            eventDao.updateScheduleItem(scheduleItem)
+            Log.d("EventsRepository", "Schedule item updated successfully: ${scheduleItem.id}")
+        } catch (e: Exception) {
+            Log.e("EventsRepository", "Error updating schedule item: ${e.message}", e)
+            throw e
+        }
+    }
+
+    override suspend fun deleteScheduleItem(scheduleItem: ScheduleItem) {
+        try {
+            // Use ScheduleItemDao through the EventDao
+            eventDao.deleteScheduleItem(scheduleItem)
+            Log.d("EventsRepository", "Schedule item deleted successfully: ${scheduleItem.id}")
+        } catch (e: Exception) {
+            Log.e("EventsRepository", "Error deleting schedule item: ${e.message}", e)
+            throw e
+        }
+    }
 }
 
