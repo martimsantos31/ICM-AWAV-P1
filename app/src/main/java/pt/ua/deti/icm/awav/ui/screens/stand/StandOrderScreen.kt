@@ -1,7 +1,6 @@
 package pt.ua.deti.icm.awav.ui.screens.stand
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,8 +20,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import pt.ua.deti.icm.awav.R
-import pt.ua.deti.icm.awav.data.model.MenuItem
 import pt.ua.deti.icm.awav.data.repository.StandRepository
+import pt.ua.deti.icm.awav.data.room.entity.MenuItem
 import pt.ua.deti.icm.awav.ui.navigation.Screen
 import pt.ua.deti.icm.awav.ui.navigation.createRoute
 import pt.ua.deti.icm.awav.ui.theme.Purple
@@ -33,8 +32,8 @@ fun StandOrderScreen(
     standId: String,
     navController: NavController
 ) {
-    val stand = remember { StandRepository.getStandById(standId) }
-    val menuItems = remember { StandRepository.getMenuItems(standId) }
+    val stand by remember { mutableStateOf(StandRepository.getStandById(standId)) }
+    val menuItems by remember { mutableStateOf(StandRepository.getMenuItems(standId)) }
     
     if (stand == null) {
         Box(
@@ -117,7 +116,7 @@ fun StandOrderScreen(
                 // In a real app, you would load the image from a URL
                 Image(
                     painter = painterResource(id = R.drawable.chorizo),
-                    contentDescription = stand.name,
+                    contentDescription = stand?.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )

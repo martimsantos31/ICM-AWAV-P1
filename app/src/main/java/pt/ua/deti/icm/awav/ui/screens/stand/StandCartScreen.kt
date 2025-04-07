@@ -33,9 +33,10 @@ fun StandCartScreen(
     standId: String,
     navController: NavController
 ) {
-    val stand = remember { StandRepository.getStandById(standId) }
-    val cart = remember { StandRepository.getCart(standId) }
-    val totalPrice = remember(cart.items) { cart.getTotalPrice() }
+    val stand by remember { mutableStateOf(StandRepository.getStandById(standId)) }
+    val cart by remember { mutableStateOf(StandRepository.getCart(standId)) }
+    val cartItems by remember { mutableStateOf(cart.getItems()) }
+    val totalPrice by remember { derivedStateOf { cart.getTotalPrice() } }
     
     if (stand == null) {
         Box(
@@ -92,7 +93,7 @@ fun StandCartScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (cart.items.isEmpty()) {
+            if (cart.isEmpty()) {
                 // Show empty cart message
                 Box(
                     modifier = Modifier
@@ -119,14 +120,14 @@ fun StandCartScreen(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    items(cart.items) { cartItem ->
+                    items(cartItems) { cartItem ->
                         CartItemCard(
                             cartItem = cartItem,
                             onIncreaseQuantity = {
                                 cart.addItem(cartItem.menuItem)
                             },
                             onDecreaseQuantity = {
-                                cart.removeItem(cartItem.menuItem.id)
+                                cart.removeItem(cartItem.menuItem)
                             }
                         )
                     }
@@ -252,17 +253,17 @@ fun CartItemCard(
             // Quantity controls
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .background(
-                        color = Color.White,
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    .padding(horizontal = 8.dp)
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.padding(4.dp)
             ) {
                 IconButton(
                     onClick = onDecreaseQuantity,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            color = Color.White,
+                            shape = RoundedCornerShape(4.dp)
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Remove,
@@ -272,16 +273,20 @@ fun CartItemCard(
                 }
                 
                 Text(
-                    text = cartItem.quantity.toString(),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Purple
+                    text = "${cartItem.quantity}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
                 
                 IconButton(
                     onClick = onIncreaseQuantity,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            color = Color.White,
+                            shape = RoundedCornerShape(4.dp)
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
