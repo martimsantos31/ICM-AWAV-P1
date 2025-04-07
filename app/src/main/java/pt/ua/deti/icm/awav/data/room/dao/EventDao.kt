@@ -39,6 +39,8 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE isActive = 1")
     fun getActiveEvents(): Flow<List<Event>>
+
+
     
     @Query("SELECT * FROM ScheduleItem WHERE eventId = :eventId")
     fun getScheduleItemsForEvent(eventId: Int): Flow<List<ScheduleItem>>

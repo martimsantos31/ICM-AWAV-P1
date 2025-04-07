@@ -1,5 +1,6 @@
 package pt.ua.deti.icm.awav.ui.screens.organizer
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -43,9 +44,32 @@ fun EventDetailsScreen(
     navController: NavController,
     viewModel: EventDetailsViewModel = viewModel()
 ) {
+    // Log the received eventId
+    Log.d("EventDetailsScreen", "Received eventId parameter: '$eventId'")
+    
+    // State to track parsing errors
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
     // Load event data when the screen is first created
     LaunchedEffect(eventId) {
-        viewModel.loadEvent(eventId.toInt())
+        try {
+            // Try to convert the eventId to Int
+            Log.d("EventDetailsScreen", "Attempting to convert eventId '$eventId' to Int")
+            val eventIdInt = eventId.toInt()
+            Log.d("EventDetailsScreen", "Successfully converted eventId to Int: $eventIdInt")
+            
+            // Load the event using the ViewModel
+            Log.d("EventDetailsScreen", "Loading event with ID: $eventIdInt")
+            viewModel.loadEvent(eventIdInt)
+        } catch (e: NumberFormatException) {
+            // Handle conversion error
+            errorMessage = "Invalid event ID format: $eventId"
+            Log.e("EventDetailsScreen", "Error parsing event ID: $eventId", e)
+        } catch (e: Exception) {
+            // Handle any other errors
+            errorMessage = "Error loading event: ${e.message}"
+            Log.e("EventDetailsScreen", "Error in EventDetailsScreen: ${e.message}", e)
+        }
     }
     
     // Create coroutine scope for database operations
@@ -55,6 +79,19 @@ fun EventDetailsScreen(
     val eventState by viewModel.event.collectAsState()
     val standsState by viewModel.stands.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    
+    // Log state changes
+    LaunchedEffect(eventState) {
+        Log.d("EventDetailsScreen", "Event state updated: ${eventState?.id} - ${eventState?.name}")
+    }
+    
+    LaunchedEffect(standsState) {
+        Log.d("EventDetailsScreen", "Stands state updated: ${standsState.size} stands loaded")
+    }
+    
+    LaunchedEffect(isLoading) {
+        Log.d("EventDetailsScreen", "Loading state updated: $isLoading")
+    }
     
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
     var selectedTab by remember { mutableStateOf(0) }

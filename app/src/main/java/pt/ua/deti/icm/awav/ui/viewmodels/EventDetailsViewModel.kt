@@ -36,15 +36,19 @@ class EventDetailsViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 // Load event
+                println("DEBUG: Loading event with ID $eventId")
                 val eventData = withContext(Dispatchers.IO) {
                     eventsRepository.getEventById(eventId).first()
                 }
+                println("DEBUG: Event loaded: $eventData")
                 _event.value = eventData
                 
                 // Load stands for this event
                 loadStands(eventId)
             } catch (e: Exception) {
                 // Handle error
+                println("DEBUG: Error loading event: ${e.message}")
+                e.printStackTrace()
                 _event.value = null
             } finally {
                 _isLoading.value = false
@@ -55,12 +59,16 @@ class EventDetailsViewModel : ViewModel() {
     // Load stands for an event
     private suspend fun loadStands(eventId: Int) {
         try {
+            println("DEBUG: Loading stands for event $eventId")
             val standsForEvent = withContext(Dispatchers.IO) {
                 standsRepository.getStandsForEvent(eventId)
             }
+            println("DEBUG: Stands loaded: ${standsForEvent.size}")
             _stands.value = standsForEvent
         } catch (e: Exception) {
             // Handle error
+            println("DEBUG: Error loading stands: ${e.message}")
+            e.printStackTrace()
             _stands.value = emptyList()
         }
     }

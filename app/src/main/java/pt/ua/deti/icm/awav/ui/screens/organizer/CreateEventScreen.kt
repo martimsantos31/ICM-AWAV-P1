@@ -1,5 +1,6 @@
 package pt.ua.deti.icm.awav.ui.screens.organizer
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -43,7 +44,11 @@ import java.util.*
 data class StandWithoutId(
     val name: String,
     val description: String
-)
+) {
+    override fun toString(): String {
+        return "StandWithoutId(name='$name', description='$description')"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,31 +56,34 @@ fun CreateEventScreen(
     navController: NavController,
     viewModel: CreateEventViewModel = viewModel()
 ) {
-    // UI state
+    // State for form fields
     var eventName by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
-    var startDate by remember { mutableStateOf(Calendar.getInstance().time) }
-    var endDate by remember { mutableStateOf(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, 1) }.time) }
-
-    // Dialog visibility states
+    var startDate by remember { mutableStateOf(Date()) }
+    var endDate by remember { mutableStateOf(Date()) }
+    
+    // State for stands
+    var stands by remember { mutableStateOf(listOf<StandWithoutId>()) }
+    
+    // UI states
+    var isSaving by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    
+    // Dialog states
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
-
-    // States for temporary stands
-    var stands by remember { mutableStateOf(listOf<StandWithoutId>()) }
     var showAddStandDialog by remember { mutableStateOf(false) }
+    
+    // For adding new stands
     var newStandName by remember { mutableStateOf("") }
     var newStandDescription by remember { mutableStateOf("") }
     
-    // Loading state
-    var isSaving by remember { mutableStateOf(false) }
-    
-    // Coroutine scope for database operations
-    val coroutineScope = rememberCoroutineScope()
-
-    // Date formatter for display
+    // Format for displaying dates
     val dateFormatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+    
+    // Coroutine scope for async operations
+    val coroutineScope = rememberCoroutineScope()
 
     // Date Picker Dialogs
     if (showStartDatePicker) {
@@ -338,6 +346,8 @@ fun CreateEventScreen(
                         // Set saving state
                         isSaving = true
                         
+                        Log.d("CreateEventScreen", "Starting event creation process for: $eventName")
+                        
                         // Create new event
                         val newEvent = Event(
                             name = eventName,
@@ -348,20 +358,29 @@ fun CreateEventScreen(
                             isActive = true,  // Default to active
                             capacity = 100    // Default capacity
                         )
+                        
+                        Log.d("CreateEventScreen", "Event object created: $newEvent")
+                        Log.d("CreateEventScreen", "Number of stands to create: ${stands.size}")
 
                         // Start coroutine for inserting the event and stands
                         coroutineScope.launch {
                             try {
+                                Log.d("CreateEventScreen", "Starting transaction with ViewModel")
                                 // Use the view model to save everything in a transaction
                                 viewModel.createEventWithStands(newEvent, stands)
                                 
+                                Log.d("CreateEventScreen", "Event and stands saved successfully, navigating back")
                                 // Navigate back after successfully saving
                                 navController.popBackStack()
                             } catch (e: Exception) {
-                                // Handle error (could show a Snackbar here)
+                                // Handle error with UI feedback
+                                Log.e("CreateEventScreen", "Error creating event: ${e.message}", e)
+                                errorMessage = "Failed to create event: ${e.message ?: "Unknown error"}"
                                 isSaving = false
                             }
                         }
+                    } else {
+                        Log.d("CreateEventScreen", "Cannot create event - validation failed")
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
@@ -436,6 +455,19 @@ fun CreateEventScreen(
             dismissButton = {
                 TextButton(onClick = { showAddStandDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (errorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { errorMessage = null },
+            title = { Text("Error") },
+            text = { Text(errorMessage ?: "An unknown error occurred") },
+            confirmButton = {
+                Button(onClick = { errorMessage = null }) {
+                    Text("OK")
                 }
             }
         )
