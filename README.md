@@ -36,7 +36,6 @@ cd ICM-AWAV-P1/PhoneApp
 
 ### Connecting Sensors
 - **NFC**: Ensure your device supports NFC and that it is enabled in the device settings.
-- **Bluetooth**: If your application requires Bluetooth, ensure Bluetooth is enabled on your device.
 
 ### Testing
 - The project includes instrumented tests located in the `app/src/androidTest` directory. You can run these tests using Android Studio's test runner.
